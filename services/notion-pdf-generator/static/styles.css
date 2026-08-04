@@ -1,0 +1,13 @@
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #252a30; font: 10.5px/1.4 Arial, sans-serif; background: #eee; }
+.page { width: 210mm; min-height: 297mm; margin: 0 auto 8mm; padding: 16mm 16mm 14mm; background: white; page-break-after: always; position: relative; }
+header { display: flex; justify-content: space-between; align-items: start; border-top: 2px solid #9eabb5; padding-top: 6mm; margin-bottom: 7mm; }
+header small { color: #647482; font-weight: 700; letter-spacing: .08em; } header h1 { margin: 1mm 0; font-size: 24px; color: #344552; } header p { margin: 0; color: #68737c; }
+header strong { color: #50616e; text-align: right; font-size: 16px; line-height: .9; } header strong span { font-size: 8px; letter-spacing: .2em; }
+h2 { margin: 5mm 0 1.5mm; padding: 2.2mm; font-size: 11px; text-transform: uppercase; color: #3e505d; background: #f6f7f8; border-bottom: 1px solid #b8c1c8; }
+.grid { display: grid; border: 1px solid #dce1e5; }.four { grid-template-columns: 25mm 1fr 31mm 1fr; }.grid > * { padding: 2.2mm; border-right: 1px solid #edf0f2; border-bottom: 1px solid #edf0f2; }.grid b { background: #fafafa; color: #66737c; font-size: 9px; }
+.legal { margin-top: 4mm; font-size: 9px; text-align: justify; }.signatures { display: grid; grid-template-columns: repeat(4,1fr); margin-top: 7mm; }.signatures.two { grid-template-columns: repeat(2,1fr); }.signatures div { height: 24mm; border: 1px solid #dce1e5; padding: 18mm 2mm 2mm; text-align: center; color: #68737c; }
+aside { margin-top: 5mm; padding: 3mm; background: #faf9f6; border: 1px solid #ddd5c4; font-size: 9px; }.account { display: grid; grid-template-columns: 35mm 1fr 45mm; min-height: 20mm; border: 1px solid #e0e4e7; border-bottom: 0; }.account:last-of-type { border-bottom: 1px solid #e0e4e7; }.account > * { padding: 3mm; }.account b { background: #fafafa; color: #66737c; }.account div { border-left: 1px solid #edf0f2; }
+table { width: 100%; border-collapse: collapse; } th,td { height: 12mm; padding: 2mm; border: 1px solid #dce1e5; } th { background: #f7f8f9; text-align: left; } th:nth-child(2),th:nth-child(3),td:nth-child(2),td:nth-child(3) { width: 14mm; text-align: center; }.observations { height: 38mm; margin-top: 5mm; padding: 3mm; border: 1px solid #dce1e5; text-transform: uppercase; }.bottom { margin-top: 150mm; }
+@media print { body { background: white; } .page { margin: 0; } }

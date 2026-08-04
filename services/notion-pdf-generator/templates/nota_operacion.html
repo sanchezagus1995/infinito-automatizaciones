@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Operación {{ operation.nro_op }}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <main class="page">
+    <header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Solicitud de crédito</h1><p>Fecha: {{ operation.fecha_armado }} · Agencia: {{ operation.texto_agencia }}</p></div><strong>INFINITO<br><span>CRÉDITOS</span></strong></header>
+    <h2>Datos de los participantes</h2>
+    <section class="grid four">
+      <b>Solicitante</b><span>{{ operation.cliente_nombre }}</span><b>Cónyuge / cotitular</b><span>{{ operation.co_nombre }}</span>
+      <b>DNI</b><span>{{ operation.dni_cliente }}</span><b>DNI</b><span>{{ operation.co_dni }}</span>
+      <b>Domicilio</b><span>{{ operation.domicilio_cliente }}</span><b>Domicilio</b><span>{{ operation.co_domicilio }}</span>
+      <b>Localidad</b><span>{{ operation.localidad_cliente }}</span><b>Localidad</b><span>{{ operation.localidad_co }}</span>
+    </section>
+    <h2>Condiciones de financiación</h2>
+    <section class="grid four">
+      <b>Acreedor</b><span>{{ operation.banco }}</span><b>Neto a liquidar</b><span>$ {{ operation.neto }}</span>
+      <b>Plazo</b><span>{{ operation.plazo }}</span><b>Primera cuota</b><span>$ {{ operation.primer_cuota }}</span>
+      <b>Vto. 1ª cuota</b><span>{{ operation.vencimiento_cuota }}</span><b>Cuota promedio</b><span>$ {{ operation.promedio_cuota }}</span>
+      <b>TNA</b><span>{{ operation.tna }} {{ operation.tasa }}</span><b>Última cuota</b><span>$ {{ operation.ultima_cuota }}</span>
+    </section>
+    <h2>Automotor y seguro</h2>
+    <section class="grid four">
+      <b>Marca</b><span>{{ operation.marca_vehiculo }}</span><b>Aseguradora</b><span>{{ operation.aseguradora }}</span>
+      <b>Modelo</b><span>{{ operation.modelo_vehiculo }}</span><b>Cobertura</b><span>{{ operation.cobertura }}</span>
+      <b>Año</b><span>{{ operation.año_vehiculo }}</span><b>Valor de cuota</b><span>$ {{ operation.monto_seguro }}</span>
+    </section>
+    <p class="legal">El neto a liquidar corresponde al capital otorgado de <b>$ {{ operation.bruto }}</b>, deducidos los gastos administrativos, de otorgamiento e impuestos aplicados por la gestión del crédito. El cliente autoriza a Infinito Créditos (AMS SAS) a percibir dichos importes, realizar las deducciones necesarias y transferir el saldo neto a la agencia donde realiza la compra del vehículo.</p>
+    <section class="signatures"><div>Firma deudor</div><div>Firma cónyuge / cotitular</div><div>Firma agencia</div><div>Firma comercial</div></section>
+    <aside>{% if variant == "seguro_externo" %}<b>Atención.</b> La operación solo podrá liquidarse cuando el vehículo cuente con seguro vigente y se hayan cumplido los requisitos del acreedor.{% else %}<b>Atención.</b> El seguro del automotor estará vigente una vez liquidado el crédito. La entrega anticipada del vehículo corre por cuenta del acuerdo entre las partes.{% endif %}</aside>
+  </main>
+  <main class="page">
+    <header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Instrucción de liquidación</h1><p>Tomador: {{ operation.cliente_nombre }} · Banco: {{ operation.banco }}</p></div><strong>INFINITO<br><span>CRÉDITOS</span></strong></header>
+    <p>En el marco de la operatoria y gestión del crédito, se deberá proceder con la liquidación y pago según el siguiente detalle.</p>
+    <h2>Datos de la operación</h2>
+    <section class="grid four"><b>Tomador</b><span>{{ operation.cliente_nombre }}</span><b>N.º de operación</b><span>{{ operation.nro_op }}</span><b>Banco</b><span>{{ operation.banco }}</span><b>Monto total</b><span>$ {{ operation.bruto }}</span><b>Fecha</b><span>{{ operation.fecha_armado }}</span><b>Agencia</b><span>{{ operation.texto_agencia }}</span></section>
+    <h2>Destino de los fondos</h2>
+    {% for i in range(1, 6) %}<section class="account"><b>Cuenta bancaria {{ i }}</b><div>Titular:<br><br>CBU / alias:</div><div>Monto: $</div></section>{% endfor %}
+    <section class="signatures two"><div>Firma responsable</div><div>Recepción AMS SAS</div></section>
+  </main>
+  <main class="page">
+    <header><div><small>CONTROL ADMINISTRATIVO</small><h1>Documentación para liquidar</h1><p>Operación {{ operation.nro_op }} · Cliente: {{ operation.cliente_nombre }}</p></div><strong>INFINITO<br><span>CRÉDITOS</span></strong></header>
+    <h2>Lista de control</h2>
+    <table><thead><tr><th>Documento</th><th>Sí</th><th>No</th><th>Observaciones</th></tr></thead><tbody>{% for item in ["DNI legible", "DNI cónyuge / cotitular", "Prenda", "Solicitud de crédito", "Nota Infinito + nota de transferencia", "Título del automotor", "Sellado", "Fotos del auto"] %}<tr><td>{{ item }}</td><td>□</td><td>□</td><td></td></tr>{% endfor %}</tbody></table>
+    <div class="observations"><b>Observaciones</b></div>
+    <section class="signatures two"><div>Firma agencia</div><div>Firma administrativo</div></section>
+  </main>
+  {% if variant == "seguro_externo" %}<main class="page"><header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Autorización de gestión de seguro</h1><p>Cliente: {{ operation.cliente_nombre }}</p></div><strong>INFINITO<br><span>CRÉDITOS</span></strong></header><p>Documento correspondiente a operaciones cuya cobertura de seguro se gestiona por fuera del circuito habitual.</p><section class="signatures two bottom"><div>Firma del cliente</div><div>Aclaración y DNI</div></section></main>{% endif %}
+</body>
+</html>
