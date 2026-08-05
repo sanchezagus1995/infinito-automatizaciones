@@ -38,8 +38,6 @@ def _authorize(header_token: str | None, query_token: str | None = None) -> None
 def _document(payload: object) -> tuple[dict, str, str]:
     operation = operation_from_webhook(payload)
     variant = select_variant(operation["bancos"], str(operation["tasa"]))
-    if variant.startswith("uva_"):
-        raise UnsupportedOperation(f"La plantilla {variant} todavía no fue incorporada")
     html = templates.get_template("nota_operacion.html").render(
         operation=operation,
         variant=variant,
