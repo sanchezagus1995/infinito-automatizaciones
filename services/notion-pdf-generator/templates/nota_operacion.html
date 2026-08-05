@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <title>Operación {{ operation.nro_op }}</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <style>{{ styles | safe }}</style>
 </head>
 <body>
   <main class="page">
-    <header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Solicitud de crédito</h1><p>Fecha: {{ operation.fecha_armado }} · Agencia: {{ operation.texto_agencia }}</p></div><strong>INFINITO<br><span>CRÉDITOS</span></strong></header>
+    <header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Solicitud de crédito</h1><p>Fecha: {{ operation.fecha_armado }} · Agencia: {{ operation.texto_agencia }}</p></div><img class="brand-logo" src="{{ logo_data_uri }}" alt="Infinito Créditos"></header>
     <h2>Datos de los participantes</h2>
     <section class="grid four">
       <b>Solicitante</b><span>{{ operation.cliente_nombre }}</span><b>Cónyuge / cotitular</b><span>{{ operation.co_nombre }}</span>
@@ -28,12 +28,12 @@
       <b>Modelo</b><span>{{ operation.modelo_vehiculo }}</span><b>Cobertura</b><span>{{ operation.cobertura }}</span>
       <b>Año</b><span>{{ operation.año_vehiculo }}</span><b>Valor de cuota</b><span>$ {{ operation.monto_seguro }}</span>
     </section>
-    <p class="legal">El neto a liquidar corresponde al capital otorgado de <b>$ {{ operation.bruto }}</b>, deducidos los gastos administrativos, de otorgamiento e impuestos aplicados por la gestión del crédito. El cliente autoriza a Infinito Créditos (AMS SAS) a percibir dichos importes, realizar las deducciones necesarias y transferir el saldo neto a la agencia donde realiza la compra del vehículo.</p>
+    <p class="legal">El neto a liquidar corresponde al capital otorgado de <b>$ {{ operation.bruto }}</b>, deducidos los gastos administrativos, de otorgamiento e impuestos aplicados por la gestión del crédito. El cliente autoriza a Infinito Créditos (AMS SAS) a percibir dichos importes, realizar las deducciones necesarias y transferir el saldo neto a la agencia antes mencionada donde el cliente realiza la compra del vehículo. El cliente declara conocer el estado del automotor adquirido, liberando de toda responsabilidad a Infinito Créditos (AMS SAS) y al acreedor prendario. El vencimiento y valor de la primera cuota, al igual que el importe del seguro, podrán variar según la fecha de liquidación. Con carácter de <b>Declaración Jurada</b>, el cliente manifiesta que los datos consignados en la presente son verídicos y se compromete a informar cualquier modificación.</p>
     <section class="signatures"><div>Firma deudor</div><div>Firma cónyuge / cotitular</div><div>Firma agencia</div><div>Firma comercial</div></section>
     <aside>{% if variant == "seguro_externo" %}<b>Atención.</b> La operación solo podrá liquidarse cuando el vehículo cuente con seguro vigente y se hayan cumplido los requisitos del acreedor.{% else %}<b>Atención.</b> El seguro del automotor estará vigente una vez liquidado el crédito. La entrega anticipada del vehículo corre por cuenta del acuerdo entre las partes.{% endif %}</aside>
   </main>
   <main class="page">
-    <header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Instrucción de liquidación</h1><p>Tomador: {{ operation.cliente_nombre }} · Banco: {{ operation.banco }}</p></div><strong>INFINITO<br><span>CRÉDITOS</span></strong></header>
+    <header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Instrucción de liquidación</h1><p>Tomador: {{ operation.cliente_nombre }} · Banco: {{ operation.banco }}</p></div><img class="brand-logo" src="{{ logo_data_uri }}" alt="Infinito Créditos"></header>
     <p>En el marco de la operatoria y gestión del crédito, se deberá proceder con la liquidación y pago según el siguiente detalle.</p>
     <h2>Datos de la operación</h2>
     <section class="grid four"><b>Tomador</b><span>{{ operation.cliente_nombre }}</span><b>N.º de operación</b><span>{{ operation.nro_op }}</span><b>Banco</b><span>{{ operation.banco }}</span><b>Monto total</b><span>$ {{ operation.bruto }}</span><b>Fecha</b><span>{{ operation.fecha_armado }}</span><b>Agencia</b><span>{{ operation.texto_agencia }}</span></section>
@@ -42,12 +42,30 @@
     <section class="signatures two"><div>Firma responsable</div><div>Recepción AMS SAS</div></section>
   </main>
   <main class="page">
-    <header><div><small>CONTROL ADMINISTRATIVO</small><h1>Documentación para liquidar</h1><p>Operación {{ operation.nro_op }} · Cliente: {{ operation.cliente_nombre }}</p></div><strong>INFINITO<br><span>CRÉDITOS</span></strong></header>
+    <header><div><small>CONTROL ADMINISTRATIVO</small><h1>Documentación para liquidar</h1><p>Operación {{ operation.nro_op }} · Cliente: {{ operation.cliente_nombre }}</p></div><img class="brand-logo" src="{{ logo_data_uri }}" alt="Infinito Créditos"></header>
     <h2>Lista de control</h2>
     <table><thead><tr><th>Documento</th><th>Sí</th><th>No</th><th>Observaciones</th></tr></thead><tbody>{% for item in ["DNI legible", "DNI cónyuge / cotitular", "Prenda", "Solicitud de crédito", "Nota Infinito + nota de transferencia", "Título del automotor", "Sellado", "Fotos del auto"] %}<tr><td>{{ item }}</td><td>□</td><td>□</td><td></td></tr>{% endfor %}</tbody></table>
+    <p class="return-deadline"><b>Plazo de devolución:</b> la prenda deberá volver antes de los 30 días de su generación para evitar inconvenientes con la liquidación.</p>
     <div class="observations"><b>Observaciones</b></div>
     <section class="signatures two"><div>Firma agencia</div><div>Firma administrativo</div></section>
   </main>
-  {% if variant == "seguro_externo" %}<main class="page"><header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Autorización de gestión de seguro</h1><p>Cliente: {{ operation.cliente_nombre }}</p></div><strong>INFINITO<br><span>CRÉDITOS</span></strong></header><p>Documento correspondiente a operaciones cuya cobertura de seguro se gestiona por fuera del circuito habitual.</p><section class="signatures two bottom"><div>Firma del cliente</div><div>Aclaración y DNI</div></section></main>{% endif %}
+  {% if variant == "seguro_externo" %}
+  <main class="page">
+    <header>
+      <div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Autorización de gestión de seguro</h1><p>Cliente: {{ operation.cliente_nombre }}</p></div>
+<img class="brand-logo" src="{{ logo_data_uri }}" alt="Infinito Créditos">
+    </header>
+    <section class="insurance-authorization">
+      <p>Por la presente, yo <b>{{ operation.cliente_nombre }}</b>, DNI <b>{{ operation.dni_cliente }}</b>, autorizo expresamente a AMS S.A.S. (Infinito Créditos) a gestionar la contratación del seguro del vehículo que estoy adquiriendo a través de <b>{{ operation.texto_agencia }}</b>, identificado con el número de operación <b>{{ operation.nro_op }}</b>, mediante CE Broker.</p>
+      <p>Asimismo, me comprometo a mantener vigente la cobertura del seguro durante toda la vigencia del préstamo asociado a la mencionada operación.</p>
+      <p>Sin otro particular, firmo la presente en señal de conformidad.</p>
+    </section>
+    <section class="authorization-signature">
+      <div>Firma</div>
+      <div>Aclaración</div>
+      <div>DNI</div>
+    </section>
+  </main>
+  {% endif %}
 </body>
 </html>
