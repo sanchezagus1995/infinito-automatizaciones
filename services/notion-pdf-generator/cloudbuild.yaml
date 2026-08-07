@@ -32,3 +32,6 @@ steps:
 
 images:
   - gcr.io/$PROJECT_ID/notion-pdf-generator:$COMMIT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
