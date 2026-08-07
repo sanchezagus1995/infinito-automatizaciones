@@ -7,7 +7,7 @@
 </head>
 <body>
   <main class="page">
-    <header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Solicitud de crédito</h1><p>Fecha: {{ operation.fecha_armado }} · Agencia: {{ operation.texto_agencia }}</p></div><img class="brand-logo" src="{{ logo_data_uri }}" alt="Infinito Créditos"></header>
+    <header><div><small>OPERACIÓN {{ operation.nro_op }}</small><h1>Solicitud de crédito</h1><p>Fecha: {{ operation.fecha_armado }} · Agencia: <strong class="agency-name">{{ operation.texto_agencia }}</strong></p></div><img class="brand-logo" src="{{ logo_data_uri }}" alt="Infinito Créditos"></header>
     <h2>Datos de los participantes</h2>
     <section class="grid four">
       <b>Solicitante</b><span>{{ operation.cliente_nombre }}</span><b>Cónyuge / cotitular</b><span>{{ operation.co_nombre }}</span>
