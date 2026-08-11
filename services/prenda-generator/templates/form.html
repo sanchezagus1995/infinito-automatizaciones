@@ -11,6 +11,7 @@
     <header><span>INFINITO CRÉDITOS</span><h1>Prenda Banco Galicia</h1><p>{{ operation.nombre }}</p></header>
     <form method="post" action="/prenda/{{ operation.page_id }}/generar">
       <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="session" value="{{ session }}">
       <section><h2>Datos traídos de Notion</h2><div class="grid">
         <label class="wide">Apellido y nombre<input name="nombre" value="{{ operation.nombre }}" required></label>
         <label>DNI<input name="dni" value="{{ operation.dni }}" required></label>
