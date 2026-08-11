@@ -1,0 +1,15 @@
+steps:
+  - id: Build
+    name: gcr.io/cloud-builders/docker
+    args: [build, --tag, "gcr.io/$PROJECT_ID/prenda-generator:$COMMIT_SHA", --file, services/prenda-generator/Dockerfile, services/prenda-generator]
+  - id: Push
+    name: gcr.io/cloud-builders/docker
+    args: [push, "gcr.io/$PROJECT_ID/prenda-generator:$COMMIT_SHA"]
+  - id: Deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: [run, deploy, prenda-generator, --image, "gcr.io/$PROJECT_ID/prenda-generator:$COMMIT_SHA", --region, southamerica-east1, --platform, managed, --quiet]
+images:
+  - "gcr.io/$PROJECT_ID/prenda-generator:$COMMIT_SHA"
+options:
+  logging: CLOUD_LOGGING_ONLY
