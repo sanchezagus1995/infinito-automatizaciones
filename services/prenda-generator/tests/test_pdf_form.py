@@ -2,7 +2,13 @@ from io import BytesIO
 
 from pypdf import PdfReader
 
-from app.pdf_form import fill_galicia, money, money_words, values_from_form
+from app.pdf_form import (
+    SECOND_PRINTABLE_PAGE_OFFSET_Y,
+    fill_galicia,
+    money,
+    money_words,
+    values_from_form,
+)
 
 
 def test_money_argentina():
@@ -43,6 +49,13 @@ def test_final_packet_has_five_printable_pages_and_normal_text_fields():
     reader = PdfReader(BytesIO(fill_galicia(values)))
 
     assert len(reader.pages) == 5
+    for page in reader.pages:
+        assert round(float(page.mediabox.width), 2) == 595.32
+        assert round(float(page.mediabox.height), 2) == 841.92
     for field in (reader.get_fields() or {}).values():
         if field.get("/FT") == "/Tx":
             assert int(field.get("/Ff", 0)) & 16777216 == 0
+
+
+def test_second_printable_page_is_shifted_five_mm_down():
+    assert round(SECOND_PRINTABLE_PAGE_OFFSET_Y, 4) == round(-5 * 72 / 25.4, 4)
