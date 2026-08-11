@@ -54,6 +54,30 @@ async def fetch_page(page_id: str) -> dict[str, Any]:
     return response.json()
 
 
+async def set_page_url(*, page_id: str, property_name: str, url: str) -> None:
+    token = os.getenv("NOTION_TOKEN")
+    if not token:
+        raise NotionError("Falta configurar NOTION_TOKEN")
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.patch(
+            f"https://api.notion.com/v1/pages/{page_id}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Notion-Version": "2022-06-28",
+                "Content-Type": "application/json",
+            },
+            json={"properties": {property_name: {"url": url}}},
+        )
+    if response.status_code == 404:
+        raise NotionError("La operación no existe o la integración no tiene acceso")
+    if response.is_error:
+        try:
+            message = response.json().get("message")
+        except ValueError:
+            message = None
+        raise NotionError(message or "No se pudo guardar el enlace del formulario en Notion")
+
+
 def operation_from_page(page: dict[str, Any]) -> dict[str, Any]:
     props = page.get("properties") or {}
     get = lambda name: property_value(props.get(name))
