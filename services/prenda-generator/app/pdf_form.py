@@ -9,9 +9,106 @@ from typing import Any
 
 from num2words import num2words
 from pypdf import PdfReader, PdfWriter
+from pypdf.generic import (
+    ArrayObject,
+    DictionaryObject,
+    FloatObject,
+    NameObject,
+    NumberObject,
+    TextStringObject,
+)
 
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "galicia" / "galicia_form.pdf"
+
+
+# These widgets already match the physical Galicia forms. Only their vertical
+# baselines are normalized; the original X coordinates and widths are kept.
+VEHICLE_ROWS = {
+    "modelo año": (707.2, 721.6),
+    "mca motor": (707.2, 721.6),
+    "nro motor": (707.2, 721.6),
+    "dominio": (694.4, 708.8),
+    "marca vehiculo": (694.4, 708.8),
+    "mca chasis": (694.4, 708.8),
+    "tipo": (680.0, 694.4),
+    "tipo de uso": (680.0, 694.4),
+    "nro chasis": (680.0, 694.4),
+    "usado/0km": (680.0, 694.4),
+    "modelo": (665.6, 680.0),
+}
+
+
+SMALL_FIELDS = {
+    "monto de prenda en letras": 6.5,
+    "nombre titular": 8.5,
+    "apellido y nombre": 8.5,
+    "titular casado": 8.5,
+    "nombre conyuge": 8.5,
+    "domicilio conyuge": 8.0,
+    "modelo": 8.5,
+    "nro motor": 8.5,
+    "nro chasis": 8.0,
+    "calle": 8.5,
+    "mail": 8.0,
+    "cuil": 8.5,
+}
+
+
+def _effective_name(widget: Any) -> Any:
+    parent = widget.get("/Parent")
+    parent = parent.get_object() if parent else None
+    return widget.get("/T") or (parent.get("/T") if parent else None)
+
+
+def _set_widget_style(writer: PdfWriter) -> None:
+    acroform = writer.root_object["/AcroForm"].get_object()
+    resources = acroform.get("/DR") or DictionaryObject()
+    fonts = resources.get("/Font") or DictionaryObject()
+    fonts[NameObject("/Helv")] = writer._add_object(DictionaryObject({
+        NameObject("/Type"): NameObject("/Font"),
+        NameObject("/Subtype"): NameObject("/Type1"),
+        NameObject("/BaseFont"): NameObject("/Helvetica"),
+        NameObject("/Encoding"): NameObject("/WinAnsiEncoding"),
+    }))
+    resources[NameObject("/Font")] = fonts
+    acroform[NameObject("/DR")] = resources
+
+    for page_number, page in enumerate(writer.pages, 1):
+        for ref in page.get("/Annots", []):
+            widget = ref.get_object()
+            if widget.get("/Subtype") != "/Widget":
+                continue
+            name = _effective_name(widget)
+            if not name or name == "Button1" or "@" in str(name):
+                continue
+            parent_ref = widget.get("/Parent")
+            parent = parent_ref.get_object() if parent_ref else None
+            target = parent if parent is not None else widget
+            if target.get("/FT") == "/Btn":
+                continue
+
+            # The source marks most text fields as comb fields, which spreads
+            # letters across the rectangle. Keep placement but remove that flag.
+            flags = int(target.get("/Ff", 0)) & ~16777216
+            target[NameObject("/Ff")] = NumberObject(flags)
+            widget[NameObject("/Ff")] = NumberObject(flags)
+            size = SMALL_FIELDS.get(str(name), 10.0)
+            appearance = TextStringObject(f"/Helv {size:g} Tf 0 g")
+            widget[NameObject("/DA")] = appearance
+            target[NameObject("/DA")] = appearance
+            widget[NameObject("/Q")] = NumberObject(0)
+            target[NameObject("/Q")] = NumberObject(0)
+
+            # Vehicle data lives on source page 3 (final page 2 after removing
+            # the data-entry sheet).
+            if page_number == 3 and str(name) in VEHICLE_ROWS:
+                rect = widget.get("/Rect")
+                y1, y2 = VEHICLE_ROWS[str(name)]
+                widget[NameObject("/Rect")] = ArrayObject([
+                    FloatObject(float(rect[0])), FloatObject(y1),
+                    FloatObject(float(rect[2])), FloatObject(y2),
+                ])
 
 
 def _upper(value: Any) -> str:
@@ -146,7 +243,11 @@ def fill_galicia(values: dict[str, Any]) -> bytes:
     missing = set(values) - set(available)
     if missing:
         raise ValueError(f"Faltan campos en la plantilla Galicia: {sorted(missing)}")
+    _set_widget_style(writer)
     writer.update_page_form_field_values(None, values, auto_regenerate=False)
+    # The first page is only the bank's data-entry sheet. The five following
+    # pages are the stable printable packet used by the operations team.
+    del writer.pages[0]
     output = BytesIO()
     writer.write(output)
     return output.getvalue()
