@@ -110,5 +110,6 @@ def operation_from_page(page: dict[str, Any]) -> dict[str, Any]:
         "tasa": get("tasa") or get("Tasa") or "",
         "fecha_armado": get("Fecha armada") or "",
         "fecha_vencimiento": get("Vencimiento 1er cuota") or "",
+        "cuota": get("1ra Cuota") or get("Primera cuota") or "",
         "bancos": banks,
     }

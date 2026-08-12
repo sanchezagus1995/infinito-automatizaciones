@@ -3,7 +3,7 @@ import os
 import pytest
 from fastapi import HTTPException
 
-from app.main import _authorize_session, _page_id_from_webhook, _session_token
+from app.main import _authorize_session, _bank_from_operation, _page_id_from_webhook, _session_token
 
 
 def test_page_id_from_notion_webhook():
@@ -28,3 +28,11 @@ def test_signed_session_expires(monkeypatch):
     with pytest.raises(HTTPException) as error:
         _authorize_session(token, "page-123", now=1_061)
     assert error.value.status_code == 401
+
+
+def test_bank_routes_are_separate():
+    assert _bank_from_operation({"bancos": ["Galicia"]}) == "galicia"
+    assert _bank_from_operation({"bancos": ["ICBC"]}) == "icbc"
+
+    with pytest.raises(HTTPException):
+        _bank_from_operation({"bancos": ["Galicia", "ICBC"]})

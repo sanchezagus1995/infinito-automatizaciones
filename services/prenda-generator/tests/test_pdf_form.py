@@ -2,6 +2,7 @@ from io import BytesIO
 
 from pypdf import PdfReader
 
+from app.icbc_pdf import fill_icbc, values_from_icbc_form
 from app.pdf_form import (
     SECOND_PRINTABLE_PAGE_OFFSET_Y,
     fill_galicia,
@@ -52,10 +53,60 @@ def test_final_packet_has_five_printable_pages_and_normal_text_fields():
     for page in reader.pages:
         assert round(float(page.mediabox.width), 2) == 595.32
         assert round(float(page.mediabox.height), 2) == 841.92
-    for field in (reader.get_fields() or {}).values():
-        if field.get("/FT") == "/Tx":
-            assert int(field.get("/Ff", 0)) & 16777216 == 0
+    assert reader.get_fields() is None
+    assert "/AcroForm" not in reader.trailer["/Root"]
+    assert all(
+        annotation.get_object().get("/Subtype") != "/Widget"
+        for page in reader.pages
+        for annotation in page.get("/Annots", [])
+    )
 
 
 def test_second_printable_page_is_shifted_five_mm_down():
     assert round(SECOND_PRINTABLE_PAGE_OFFSET_Y, 4) == round(-5 * 72 / 25.4, 4)
+
+
+def test_icbc_packet_has_four_static_a4_pages():
+    values = values_from_icbc_form({
+        "nombre": "Franco Pablo Alejandro",
+        "dni": 28024038,
+        "cuil": 23280240389,
+        "bruto": 32336964.92,
+        "cuota": 1347333.55,
+        "plazo": 24,
+        "tna": 56,
+        "tea": 72.48,
+        "cftea": 83.05,
+        "estado_civil": "Soltero",
+        "nacionalidad": "Argentina",
+        "fecha_nacimiento": "1980-04-09",
+        "fecha_armado": "2026-08-12",
+        "fecha_vencimiento": "2026-09-10",
+        "calle": "Cuenca de los Barriales Mza E Casa 9",
+        "piso_departamento": "225",
+        "codigo_postal": "8305",
+        "localidad": "San Patricio del Chañar",
+        "partido": "Añelo",
+        "provincia": "Neuquén",
+        "dominio": "AH018XV",
+        "marca": "Ford",
+        "tipo_vehiculo": "Pick-up",
+        "modelo": "Ranger DC XL 2.0L T 4X2 MTD",
+        "marca_motor": "Ford",
+        "numero_motor": "P02553434331",
+        "marca_chasis": "Ford",
+        "numero_chasis": "8AF6BA00H783434331",
+        "anio": 2025,
+        "tipo_uso": "Privado",
+        "profesion": "Empleado",
+    })
+    reader = PdfReader(BytesIO(fill_icbc(values)))
+
+    assert len(reader.pages) == 4
+    assert reader.get_fields() is None
+    assert all(round(float(page.mediabox.width), 1) == 595.0 for page in reader.pages)
+    assert all(round(float(page.mediabox.height), 1) == 842.0 for page in reader.pages)
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    assert "30-70944784-6" in text
+    assert "$1.347.333,55" in text
+    assert "8305" in text

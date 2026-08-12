@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from num2words import num2words
+import pymupdf
 from pypdf import PdfReader, PdfWriter, Transformation
 from pypdf.generic import (
     ArrayObject,
@@ -297,4 +298,19 @@ def fill_galicia(values: dict[str, Any]) -> bytes:
     del writer.pages[0]
     output = BytesIO()
     writer.write(output)
-    return output.getvalue()
+    # This bank template stores the printed values only in widget appearances.
+    # Render at production print resolution and rebuild static pages so those
+    # appearances become immutable pixels in the final PDF.
+    source = pymupdf.open(stream=output.getvalue(), filetype="pdf")
+    document = pymupdf.open()
+    matrix = pymupdf.Matrix(300 / 72, 300 / 72)
+    for source_page in source:
+        pixmap = source_page.get_pixmap(
+            matrix=matrix, colorspace=pymupdf.csGRAY, alpha=False, annots=True
+        )
+        page = document.new_page(width=source_page.rect.width, height=source_page.rect.height)
+        page.insert_image(page.rect, pixmap=pixmap)
+    flattened = document.tobytes(garbage=4, deflate=True)
+    source.close()
+    document.close()
+    return flattened

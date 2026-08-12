@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from .notion import NotionError, fetch_page, operation_from_page, set_page_url
+from .icbc_pdf import fill_icbc, values_from_icbc_form
 from .pdf_form import fill_galicia, values_from_form
 
 
@@ -74,6 +75,20 @@ def _page_id_from_webhook(payload: object) -> str:
     return str(page_id)
 
 
+def _bank_from_operation(operation: dict[str, object]) -> str:
+    banks = {_bank.upper() for _bank in operation["bancos"]}
+    matches = []
+    if any("GALICIA" in bank for bank in banks):
+        matches.append("galicia")
+    if any("ICBC" in bank for bank in banks):
+        matches.append("icbc")
+    if len(matches) > 1:
+        raise HTTPException(status_code=422, detail="La operación tiene más de un banco compatible")
+    if not matches:
+        raise HTTPException(status_code=422, detail="Solo están disponibles Galicia e ICBC")
+    return matches[0]
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -85,12 +100,10 @@ async def webhook(request: Request) -> dict[str, str]:
     page_id = _page_id_from_webhook(await request.json())
     try:
         operation = operation_from_page(await fetch_page(page_id))
-        banks = {_bank.upper() for _bank in operation["bancos"]}
-        if "GALICIA" not in banks:
-            raise HTTPException(status_code=422, detail="La operación no corresponde a Banco Galicia")
+        bank = _bank_from_operation(operation)
         session = _session_token(page_id)
         base_url = os.getenv("PUBLIC_BASE_URL") or str(request.base_url).rstrip("/")
-        form_url = f"{base_url}/prenda/{page_id}?session={session}"
+        form_url = f"{base_url}/prenda/{page_id}?session={session}&bank={bank}"
         property_name = os.getenv("FORM_URL_PROPERTY", "Formulario prenda")
         await set_page_url(page_id=page_id, property_name=property_name, url=form_url)
     except NotionError as exc:
@@ -110,12 +123,12 @@ async def form(request: Request, page_id: str) -> HTMLResponse:
         operation = operation_from_page(await fetch_page(page_id))
     except NotionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    banks = {_bank.upper() for _bank in operation["bancos"]}
-    if "GALICIA" not in banks:
-        raise HTTPException(status_code=422, detail="Esta primera versión admite solamente Banco Galicia")
+    bank = _bank_from_operation(operation)
     return HTMLResponse(templates.get_template("form.html").render(
         request=request,
         operation=operation,
+        bank=bank,
+        bank_name="Banco Galicia" if bank == "galicia" else "ICBC",
         token=token or "",
         session=session or "",
     ))
@@ -130,10 +143,22 @@ async def generate(page_id: str, request: Request) -> StreamingResponse:
     else:
         _authorize(str(form_data.pop("token", "")))
     form_data["page_id"] = page_id
+    requested_bank = str(form_data.pop("bank", "")).lower()
     try:
-        pdf = fill_galicia(values_from_form(form_data))
-    except ValueError as exc:
+        operation = operation_from_page(await fetch_page(page_id))
+        bank = _bank_from_operation(operation)
+        if requested_bank != bank:
+            raise ValueError("El banco del formulario no coincide con la operación de Notion")
+        if bank == "galicia":
+            pdf = fill_galicia(values_from_form(form_data))
+            bank_filename = "Galicia"
+        elif bank == "icbc":
+            pdf = fill_icbc(values_from_icbc_form(form_data))
+            bank_filename = "ICBC"
+        else:
+            raise ValueError("Banco no válido")
+    except (NotionError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     safe_name = re.sub(r"[^A-Za-z0-9_-]+", "-", form_data.get("nombre", "prenda")).strip("-")
-    headers = {"Content-Disposition": f'attachment; filename="Prenda-Galicia-{safe_name}.pdf"'}
+    headers = {"Content-Disposition": f'attachment; filename="Prenda-{bank_filename}-{safe_name}.pdf"'}
     return StreamingResponse(BytesIO(pdf), media_type="application/pdf", headers=headers)

@@ -3,27 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Prenda Galicia · {{ operation.nombre }}</title>
+  <title>Prenda {{ bank_name }} · {{ operation.nombre }}</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
   <main>
-    <header><span>INFINITO CRÉDITOS</span><h1>Prenda Banco Galicia</h1><p>{{ operation.nombre }}</p></header>
+    <header><span>INFINITO CRÉDITOS</span><h1>Prenda {{ bank_name }}</h1><p>{{ operation.nombre }}</p></header>
     <form method="post" action="/prenda/{{ operation.page_id }}/generar">
       <input type="hidden" name="token" value="{{ token }}">
       <input type="hidden" name="session" value="{{ session }}">
+      <input type="hidden" name="bank" value="{{ bank }}">
       <section><h2>Datos traídos de Notion</h2><div class="grid">
         <label class="wide">Apellido y nombre<input name="nombre" value="{{ operation.nombre }}" required></label>
         <label>DNI<input name="dni" value="{{ operation.dni }}" required></label>
         <label>CUIL<input name="cuil" value="{{ operation.cuil }}" required></label>
         <label>Fecha de nacimiento<input type="date" name="fecha_nacimiento" value="{{ operation.fecha_nacimiento[:10] }}" required></label>
-        <label>Estado civil<select name="estado_civil"><option>{{ operation.estado_civil }}</option><option>Soltero</option><option>Casado</option><option>Divorciado</option></select></label>
+        <label>Estado civil<select name="estado_civil"><option>{{ operation.estado_civil }}</option><option>Soltero</option><option>Casado</option><option>Divorciado</option><option>Viudo</option></select></label>
         <label>Email<input type="email" name="email" value="{{ operation.email }}"></label>
         <label>Tipo de tasa<input name="tasa" value="{{ operation.tasa }}" readonly></label>
       </div></section>
       <section><h2>Domicilio</h2><p class="hint">Referencia de Notion: {{ operation.domicilio }}</p><div class="grid">
         <label class="wide">Calle<input name="calle" required></label><label>Número<input name="numero_calle" placeholder="S/N" required></label>
         <label>Código postal<input name="codigo_postal" required></label><label>Localidad<input name="localidad" value="{{ operation.localidad }}" required></label>
+        {% if bank == "icbc" %}<label>Piso / departamento / casa<input name="piso_departamento"></label>{% endif %}
         <label>Departamento / partido<input name="partido" required></label><label>Provincia<input name="provincia" value="{{ operation.provincia }}" required></label>
       </div></section>
       <section><h2>Datos personales faltantes</h2><div class="grid">
@@ -43,8 +45,13 @@
         <label>Monto de prenda<input name="bruto" value="{{ operation.bruto }}" required></label><label>Plazo<input name="plazo" value="{{ operation.plazo }}" required></label>
         <label>TNA<input name="tna" value="{{ operation.tna }}" required></label><label>Fecha de armado<input type="date" name="fecha_armado" value="{{ operation.fecha_armado[:10] }}" required></label>
         <label>Fecha de vencimiento<input type="date" name="fecha_vencimiento" value="{{ operation.fecha_vencimiento[:10] }}" required></label>
+        {% if bank == "icbc" %}
+        <label>Importe de la cuota<input name="cuota" value="{{ operation.cuota }}" required></label>
+        <label>TEA<input name="tea"></label><label>CFTEA<input name="cftea"></label>
+        <label>Lugar de armado<input name="localidad_armado" value="{{ operation.provincia }}"></label>
+        {% endif %}
       </div></section>
-      <button type="submit">Generar prenda Galicia</button>
+      <button type="submit">Generar prenda {{ bank_name }}</button>
     </form>
   </main>
 </body>
