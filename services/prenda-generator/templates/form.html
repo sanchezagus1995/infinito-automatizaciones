@@ -42,13 +42,18 @@
         <label>Tipo de uso<input name="tipo_uso" value="PRIVADO" required></label>
       </div></section>
       <section><h2>Crédito</h2><div class="grid">
-        <label>Monto de prenda<input name="bruto" value="{{ operation.bruto }}" required></label><label>Plazo<input name="plazo" value="{{ operation.plazo }}" required></label>
+        {% if bank == "icbc" %}
+        <label>Monto financiado <small>(referencia de Notion)</small><input value="{{ operation.bruto }}" readonly></label>
+        <label>Monto de prenda<input name="monto_prenda" required></label>
+        {% else %}
+        <label>Monto de prenda<input name="bruto" value="{{ operation.bruto }}" required></label>
+        {% endif %}
+        <label>Plazo<input name="plazo" value="{{ operation.plazo }}" required></label>
         <label>TNA<input name="tna" value="{{ operation.tna }}" required></label><label>Fecha de armado<input type="date" name="fecha_armado" value="{{ operation.fecha_armado[:10] }}" required></label>
         <label>Fecha de vencimiento<input type="date" name="fecha_vencimiento" value="{{ operation.fecha_vencimiento[:10] }}" required></label>
         {% if bank == "icbc" %}
         <label>Importe de la cuota<input name="cuota" value="{{ operation.cuota }}" required></label>
         <label>TEA<input name="tea"></label><label>CFTEA<input name="cftea"></label>
-        <label>Lugar de armado<input name="localidad_armado" value="{{ operation.provincia }}"></label>
         {% endif %}
       </div></section>
       <button type="submit">Generar prenda {{ bank_name }}</button>

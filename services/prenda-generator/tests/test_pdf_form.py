@@ -66,12 +66,13 @@ def test_second_printable_page_is_shifted_five_mm_down():
     assert round(SECOND_PRINTABLE_PAGE_OFFSET_Y, 4) == round(-5 * 72 / 25.4, 4)
 
 
-def test_icbc_packet_has_four_static_a4_pages():
+def test_icbc_packet_uses_manual_pledge_amount_and_oficio_continuation():
     values = values_from_icbc_form({
         "nombre": "Franco Pablo Alejandro",
         "dni": 28024038,
         "cuil": 23280240389,
         "bruto": 32336964.92,
+        "monto_prenda": 19210000,
         "cuota": 1347333.55,
         "plazo": 24,
         "tna": 56,
@@ -104,9 +105,13 @@ def test_icbc_packet_has_four_static_a4_pages():
 
     assert len(reader.pages) == 4
     assert reader.get_fields() is None
-    assert all(round(float(page.mediabox.width), 1) == 595.0 for page in reader.pages)
-    assert all(round(float(page.mediabox.height), 1) == 842.0 for page in reader.pages)
+    assert all(round(float(page.mediabox.width), 1) == 595.0 for page in reader.pages[:3])
+    assert all(round(float(page.mediabox.height), 1) == 842.0 for page in reader.pages[:3])
+    assert round(float(reader.pages[3].mediabox.width), 1) == 612.0
+    assert round(float(reader.pages[3].mediabox.height), 1) == 936.0
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
     assert "30-70944784-6" in text
+    assert "$19.210.000,00" in text
+    assert "$32.336.964,92" not in text
     assert "$1.347.333,55" in text
     assert "8305" in text

@@ -89,6 +89,14 @@ def _bank_from_operation(operation: dict[str, object]) -> str:
     return matches[0]
 
 
+def _validate_bank_product(operation: dict[str, object], bank: str) -> None:
+    if bank == "icbc" and "UVA" in str(operation.get("tasa") or "").upper():
+        raise HTTPException(
+            status_code=422,
+            detail="La generación de prendas ICBC UVA todavía no está disponible",
+        )
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -101,6 +109,7 @@ async def webhook(request: Request) -> dict[str, str]:
     try:
         operation = operation_from_page(await fetch_page(page_id))
         bank = _bank_from_operation(operation)
+        _validate_bank_product(operation, bank)
         session = _session_token(page_id)
         base_url = os.getenv("PUBLIC_BASE_URL") or str(request.base_url).rstrip("/")
         form_url = f"{base_url}/prenda/{page_id}?session={session}&bank={bank}"
@@ -124,6 +133,7 @@ async def form(request: Request, page_id: str) -> HTMLResponse:
     except NotionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     bank = _bank_from_operation(operation)
+    _validate_bank_product(operation, bank)
     return HTMLResponse(templates.get_template("form.html").render(
         request=request,
         operation=operation,
@@ -147,6 +157,7 @@ async def generate(page_id: str, request: Request) -> StreamingResponse:
     try:
         operation = operation_from_page(await fetch_page(page_id))
         bank = _bank_from_operation(operation)
+        _validate_bank_product(operation, bank)
         if requested_bank != bank:
             raise ValueError("El banco del formulario no coincide con la operación de Notion")
         if bank == "galicia":

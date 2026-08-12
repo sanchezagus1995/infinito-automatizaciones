@@ -12,8 +12,12 @@ from .pdf_form import _age, _cuil, _date_parts, _digits, _upper, money, money_wo
 
 PAGE_WIDTH = 595.0
 PAGE_HEIGHT = 842.0
+OFICIO_WIDTH = 612.0
+OFICIO_HEIGHT = 936.0
 REFERENCE_WIDTH = 1157.0
 REFERENCE_HEIGHT = 1637.0
+PAGE4_ADDRESS_OFFSET_X = 10 * 72 / 25.4
+PAGE4_ADDRESS_OFFSET_Y = 40 * 72 / 25.4
 
 
 def _x(value: float) -> float:
@@ -50,6 +54,26 @@ def _draw(
     canvas.drawString(_x(x), _y(y), value)
 
 
+def _draw_at(
+    canvas: Canvas,
+    text: Any,
+    x: float,
+    baseline_from_top: float,
+    width: float = 250,
+    size: float = 8.2,
+    *,
+    bold: bool = False,
+) -> None:
+    """Draw at exact PDF point coordinates measured from the approved sample."""
+    value = _upper(text)
+    if not value:
+        return
+    font = "Helvetica-Bold" if bold else "Helvetica"
+    canvas.setFillColor(black)
+    canvas.setFont(font, _fit_size(value, width, size))
+    canvas.drawString(x, canvas._pagesize[1] - baseline_from_top, value)
+
+
 def _mark(canvas: Canvas, x: float, y: float) -> None:
     canvas.setStrokeColor(black)
     canvas.setLineWidth(1.4)
@@ -60,14 +84,13 @@ def _mark(canvas: Canvas, x: float, y: float) -> None:
 
 
 def _address(values: dict[str, Any]) -> str:
-    parts = [values.get("calle"), values.get("numero_calle")]
+    parts = [values.get("calle"), values.get("numero_calle"), values.get("piso_departamento")]
     return " ".join(_upper(part) for part in parts if _upper(part))
 
 
 def _full_address(values: dict[str, Any]) -> str:
     parts = [
         _address(values),
-        values.get("piso_departamento"),
         values.get("localidad"),
         values.get("provincia"),
         values.get("codigo_postal"),
@@ -88,8 +111,8 @@ def values_from_icbc_form(form: dict[str, Any]) -> dict[str, Any]:
         "estado_civil": civil_status,
         "nacionalidad": nationality,
         "edad": _age(form.get("fecha_nacimiento"), form.get("fecha_armado")),
-        "monto": money(form.get("bruto")),
-        "monto_letras": money_words(form.get("bruto")),
+        "monto": money(form.get("monto_prenda")),
+        "monto_letras": money_words(form.get("monto_prenda")),
         "cuota": money(form.get("cuota")),
         "vencimiento": "/".join(part for part in due if part),
         "anio_armado": armed[2] or "",
@@ -99,122 +122,124 @@ def values_from_icbc_form(form: dict[str, Any]) -> dict[str, Any]:
 
 
 def _draw_page_1(canvas: Canvas, values: dict[str, Any]) -> None:
-    _draw(canvas, values["monto"], 264, 273, 210, 9)
-    _draw(canvas, values.get("dominio"), 528, 276, 135, 9)
+    _draw_at(canvas, values["monto"], 135.76, 128.19, 130, 9)
+    _draw_at(canvas, values.get("dominio"), 276.80, 128.19, 80, 9)
 
     # Section D - invariant ICBC creditor data.
-    _draw(canvas, "INDUSTRIAL AND COMMERCIAL BANK", 274, 402, 360)
-    _draw(canvas, "OF CHINA (ARGENTINA) S.A.U.", 274, 446, 360)
-    _draw(canvas, "CUIT: 30-70944784-6", 282, 477, 330)
-    _draw(canvas, "FLORIDA", 288, 535, 210)
-    _draw(canvas, "99", 304, 568, 80)
-    _draw(canvas, "1005", 566, 568, 90)
-    _draw(canvas, "C.A.B.A.", 302, 608, 210)
-    _draw(canvas, "C.A.B.A.", 287, 646, 180)
-    _draw(canvas, "BS. AS.", 542, 648, 100)
-    _draw(canvas, "I.G.J. N° 4987-7-6 ACC.", 270, 970, 350)
-    _draw(canvas, "31", 519, 1042, 45)
-    _draw(canvas, "03", 567, 1042, 45)
-    _draw(canvas, "06", 615, 1042, 45)
+    _draw_at(canvas, "INDUSTRIAL AND COMMERCIAL BANK", 140.91, 201.56, 190)
+    _draw_at(canvas, "OF CHINA (ARGENTINA) S.A.U.", 140.91, 225.07, 180)
+    _draw_at(canvas, "CUIT: 30-70944784-6", 145.02, 241.02, 130)
+    _draw_at(canvas, "FLORIDA", 148.11, 265.55, 100)
+    _draw_at(canvas, "99", 156.34, 290.61, 35)
+    _draw_at(canvas, "1005", 291.07, 290.61, 40)
+    _draw_at(canvas, "C.A.B.A.", 155.31, 312.73, 80)
+    _draw_at(canvas, "C.A.B.A.", 147.59, 332.27, 80)
+    _draw_at(canvas, "BS. AS.", 278.73, 333.30, 55)
+    _draw_at(canvas, "I.G.J. N° 4987-7-6 ACC.", 138.85, 507.96, 130)
+    _draw_at(canvas, "31", 256.70, 547.51, 20)
+    _draw_at(canvas, "03", 281.39, 547.51, 20)
+    _draw_at(canvas, "06", 306.07, 547.51, 20)
 
-    _draw(canvas, values["nombre"], 711, 419, 350, 8.5)
-    _draw(canvas, f"CUIL: {values['cuil']}", 700, 461, 330)
-    _draw(canvas, values.get("profesion"), 714, 495, 220)
-    _draw(canvas, values["domicilio_resumido"], 684, 550, 390, 6.8)
-    _draw(canvas, values.get("piso_departamento"), 706, 588, 70)
-    _draw(canvas, values.get("codigo_postal"), 1053, 588, 75)
-    _draw(canvas, values.get("localidad"), 778, 625, 300, 7.6)
-    _draw(canvas, values.get("partido"), 758, 659, 150)
-    _draw(canvas, values.get("provincia"), 971, 659, 150)
+    _draw_at(canvas, values["nombre"], 365.64, 201.86, 180, 8.5)
+    _draw_at(canvas, f"CUIL: {values['cuil']}", 365.64, 223.53, 150)
+    _draw_at(canvas, values.get("profesion"), 372.84, 241.02, 110)
+    _draw_at(canvas, values["domicilio_resumido"], 351.75, 264.80, 190, 6.8)
+    _draw_at(canvas, values.get("codigo_postal"), 517.25, 290.61, 40)
+    _draw_at(canvas, values.get("localidad"), 400.10, 312.85, 145, 7.6)
+    _draw_at(canvas, values.get("partido"), 389.81, 333.30, 80)
+    _draw_at(canvas, values.get("provincia"), 499.35, 333.30, 70)
 
     if values["nacionalidad"] in {"ARGENTINO", "ARGENTINA"}:
         _mark(canvas, 705, 734)
     else:
         _mark(canvas, 937, 734)
-    _draw(canvas, values["dni"], 704, 797, 190)
-    _draw(canvas, values.get("autoridad_dni", "R.N.P."), 877, 797, 135)
+    _draw_at(canvas, values["dni"], 362.04, 409.94, 70)
+    _draw_at(canvas, values.get("autoridad_dni", "R.N.P."), 451.01, 409.94, 60)
     birth = _date_parts(values.get("fecha_nacimiento"))
-    _draw(canvas, birth[0], 689, 882, 45)
-    _draw(canvas, birth[1], 742, 882, 45)
-    _draw(canvas, f"19{birth[2]}" if birth[2] else "", 800, 882, 75)
+    _draw_at(canvas, birth[0], 341.91, 453.48, 20)
+    _draw_at(canvas, birth[1], 369.16, 453.48, 20)
+    _draw_at(canvas, f"19{birth[2]}" if birth[2] else "", 398.99, 453.48, 40)
     civil_marks = {"SOLTERO": (856, 875), "CASADO": (916, 875), "VIUDO": (973, 875), "DIVORCIADO": (1033, 875)}
     if values["estado_civil"] in civil_marks:
         _mark(canvas, *civil_marks[values["estado_civil"]])
 
-    _draw(canvas, values.get("dominio"), 484, 1240, 160, 9)
-    _draw(canvas, values.get("marca"), 403, 1286, 150)
-    _draw(canvas, values.get("tipo_vehiculo"), 350, 1330, 160)
-    _draw(canvas, values.get("modelo"), 360, 1375, 330, 7.2)
-    _draw(canvas, values.get("marca_motor"), 405, 1418, 140)
-    _draw(canvas, values.get("numero_motor"), 397, 1462, 230)
-    _draw(canvas, values.get("marca_chasis"), 403, 1505, 130)
-    _draw(canvas, values.get("numero_chasis"), 382, 1547, 310, 7.2)
+    _draw_at(canvas, values.get("dominio"), 248.90, 671.99, 80, 9)
+    _draw_at(canvas, values.get("marca"), 207.25, 693.83, 80)
+    _draw_at(canvas, values.get("tipo_vehiculo"), 152.33, 715.20, 80)
+    _draw_at(canvas, values.get("modelo"), 158.73, 729.56, 150, 7.2)
+    _draw_at(canvas, values.get("marca_motor"), 168.48, 751.99, 70)
+    _draw_at(canvas, values.get("numero_motor"), 168.48, 774.47, 120)
+    _draw_at(canvas, values.get("marca_chasis"), 158.73, 796.69, 70)
+    _draw_at(canvas, values.get("numero_chasis"), 158.73, 817.71, 145, 7.2)
 
     # Section I - invariant ICBC contract modality.
-    _draw(canvas, "1", 476, 1516, 30, 8)
+    _draw_at(canvas, "1", 370.13, 778.39, 20, 8)
     _mark(canvas, 512, 1518)
     _mark(canvas, 1017, 1518)
     _mark(canvas, 1017, 1582)
 
 
 def _draw_page_2(canvas: Canvas, values: dict[str, Any]) -> None:
-    _draw(canvas, values["monto"], 348, 303, 260, 9)
-    _draw(canvas, values.get("localidad_armado") or values.get("provincia"), 765, 299, 150)
-    _draw(canvas, values["anio_armado"], 1005, 299, 80)
+    _draw_at(canvas, values["monto"], 178.96, 172.30, 130, 9)
+    _draw_at(canvas, values.get("provincia"), 403.91, 155.59, 100)
+    armed = _date_parts(values.get("fecha_armado"))
+    _draw_at(canvas, "/".join(part for part in armed if part), 500.0, 155.59, 75)
     words = values["monto_letras"]
     midpoint = min(len(words), 58)
     split = words.rfind(" ", 0, midpoint)
     split = split if split > 0 else midpoint
-    _draw(canvas, words[:split], 645, 346, 430, 7)
-    _draw(canvas, words[split:].strip(), 288, 375, 570, 7)
-    _draw(canvas, values["nombre"], 820, 374, 270, 7.2)
-    _draw(canvas, f"UN AUTOMOTOR: DOMINIO {values.get('dominio', '')} - MARCA {values.get('marca', '')}", 311, 454, 730, 6.5)
-    _draw(canvas, f"TIPO {values.get('tipo_vehiculo', '')} - MODELO {values.get('modelo', '')}", 349, 480, 650, 6.5)
-    _draw(canvas, f"MARCA MOTOR {values.get('marca_motor', '')} - NRO MOTOR {values.get('numero_motor', '')}", 352, 507, 600, 6.5)
-    _draw(canvas, f"MARCA CHASIS {values.get('marca_chasis', '')} - NRO CHASIS {values.get('numero_chasis', '')}", 350, 534, 650, 6.5)
-    _draw(canvas, f"AÑO {values.get('anio', '')} - USO {values.get('tipo_uso', '')}", 360, 562, 350, 6.8)
-    _draw(canvas, values.get("provincia"), 571, 606, 180)
-    _draw(canvas, values.get("partido"), 398, 632, 120)
-    _draw(canvas, values.get("localidad"), 429, 659, 280, 6.8)
-    _draw(canvas, values["domicilio_resumido"], 764, 659, 300, 6.3)
-    _draw(canvas, values.get("piso_departamento"), 1020, 659, 70)
-    _draw(canvas, "NINGUNO", 883, 686, 170)
-    _draw(canvas, f"{values.get('plazo', '')} CUOTAS IGUALES, MENSUALES Y CONSECUTIVAS", 535, 740, 480, 6.7)
-    _draw(canvas, values["cuota"], 908, 740, 160, 6.7)
-    _draw(canvas, f"LA PRIMERA CUOTA VENCE EL DÍA {values['vencimiento']}", 540, 767, 500, 6.5)
-    _draw(canvas, "Y LAS RESTANTES EL MISMO DÍA DE CADA MES SUBSIGUIENTE", 385, 793, 650, 6.2)
-    _draw(canvas, values.get("tna"), 755, 839, 70, 8)
-    _draw(canvas, values["nombre"], 875, 936, 270, 7)
-    _draw(canvas, f"{values['estado_civil']} - PROFESIÓN: {values.get('profesion', '')}", 865, 965, 270, 6.6)
-    _draw(canvas, values["nacionalidad"], 858, 993, 130, 6.8)
-    _draw(canvas, values["edad"], 1020, 993, 55, 6.8)
-    _draw(canvas, values["domicilio_resumido"], 846, 1020, 280, 5.9)
-    _draw(canvas, values["dni"], 875, 1049, 160, 6.8)
-    _draw(canvas, values["cuil"], 865, 1077, 190, 6.8)
+    _draw_at(canvas, words[:split], 331.70, 192.48, 220, 7)
+    _draw_at(canvas, words[split:].strip(), 148.11, 207.40, 260, 7)
+    _draw_at(canvas, values["nombre"], 421.69, 206.89, 150, 7.2)
+    _draw_at(canvas, f"UN AUTOMOTOR: DOMINIO {values.get('dominio', '')} - MARCA {values.get('marca', '')}", 159.94, 233.52, 380, 6.5)
+    _draw_at(canvas, f"TIPO {values.get('tipo_vehiculo', '')} - MODELO {values.get('modelo', '')}", 179.48, 246.89, 370, 6.5)
+    _draw_at(canvas, f"MARCA MOTOR {values.get('marca_motor', '')} - NRO MOTOR {values.get('numero_motor', '')}", 181.02, 260.78, 360, 6.5)
+    _draw_at(canvas, f"MARCA CHASIS {values.get('marca_chasis', '')} - NRO CHASIS {values.get('numero_chasis', '')}", 179.99, 274.67, 380, 6.5)
+    _draw_at(canvas, f"AÑO {values.get('anio', '')} - USO {values.get('tipo_uso', '')}", 185.13, 289.07, 200, 6.8)
+    _draw_at(canvas, values.get("provincia"), 293.64, 352.85, 100)
+    _draw_at(canvas, values.get("partido"), 204.68, 366.22, 70)
+    _draw_at(canvas, values.get("localidad"), 220.62, 380.72, 170, 6.8)
+    _draw_at(canvas, values["domicilio_resumido"], 392.90, 380.72, 190, 5.7)
+    _draw_at(canvas, "NINGUNO", 454.09, 352.85, 80)
+    _draw_at(canvas, f"{values.get('plazo', '')} CUOTAS IGUALES, MENSUALES Y CONSECUTIVAS", 336.34, 413.03, 190, 6.7)
+    _draw_at(canvas, values["cuota"], 528.16, 413.03, 70, 6.7)
+    _draw_at(canvas, f"LA PRIMERA CUOTA VENCE EL DÍA {values['vencimiento']}", 338.91, 426.92, 220, 6.5)
+    _draw_at(canvas, "Y LAS RESTANTES EL MISMO DÍA DE CADA MES SUBSIGUIENTE", 378.06, 439.28, 210, 6.2)
+    _draw_at(canvas, values.get("tna"), 388.27, 482.42, 35, 8)
+    _draw_at(canvas, values["nombre"], 449.98, 554.47, 130, 7)
+    _draw_at(canvas, f"{values['estado_civil']} - PROFESIÓN: {values.get('profesion', '')}", 444.84, 569.38, 140, 6.6)
+    _draw_at(canvas, values["nacionalidad"], 441.24, 583.79, 80, 6.8)
+    _draw_at(canvas, values["edad"], 524.55, 583.79, 25, 6.8)
+    _draw_at(canvas, values["domicilio_resumido"], 435.06, 597.67, 150, 5.5)
+    _draw_at(canvas, values["dni"], 449.98, 612.59, 70, 6.8)
+    _draw_at(canvas, values["cuil"], 444.84, 626.99, 90, 6.8)
 
 
 def _draw_page_3(canvas: Canvas, values: dict[str, Any]) -> None:
-    _draw(canvas, values.get("tna"), 766, 77, 50, 8)
-    _draw(canvas, values.get("tea"), 297, 101, 70, 8)
-    _draw(canvas, values.get("cftea"), 999, 101, 70, 8)
+    _draw_at(canvas, values.get("tna"), 431.77, 39.18, 30, 8.2)
+    _draw_at(canvas, values.get("tea"), 152.74, 50.45, 35, 8)
+    _draw_at(canvas, values.get("cftea"), 552.54, 49.13, 35, 8.2)
     if len(values["domicilio_completo"]) > 38:
-        _draw(canvas, f"* CALLE: {values['domicilio_resumido']}", 498, 710, 560, 6.4, bold=True)
-        _draw(canvas, f"* DOMICILIO: {values['domicilio_completo']}", 498, 735, 610, 5.8, bold=True)
+        _draw_at(canvas, f"* CALLE: {values['domicilio_resumido']}", 256.10, 405.72, 290, 6.4, bold=True)
+        _draw_at(canvas, f"* DOMICILIO: {values['domicilio_completo']}", 256.10, 418.57, 330, 5.4, bold=True)
 
 
 def _draw_page_4(canvas: Canvas, values: dict[str, Any]) -> None:
     # ICBC is preprinted as creditor on this sheet; only the debtor is added.
-    _draw(canvas, values["nombre"], 292, 190, 340, 7)
-    _draw(canvas, values["domicilio_resumido"], 762, 1510, 360, 5.8)
-    _draw(canvas, values.get("piso_departamento"), 1063, 1510, 60, 6)
-    _draw(canvas, values.get("localidad"), 170, 1538, 300, 6)
-    _draw(canvas, values.get("provincia"), 817, 1538, 130, 6)
+    _draw_at(canvas, values["nombre"], 150.16, 97.73, 180, 7)
+    # The physical continuation sheet is oficio. The approved A4 reference is
+    # shifted here by the measured 1 cm right / 4 cm down correction.
+    _draw_at(canvas, values["domicilio_resumido"], 391.87 + PAGE4_ADDRESS_OFFSET_X, 776.68 + PAGE4_ADDRESS_OFFSET_Y, 160, 5.8)
+    _draw_at(canvas, values.get("localidad"), 87.42 + PAGE4_ADDRESS_OFFSET_X, 791.08 + PAGE4_ADDRESS_OFFSET_Y, 210, 6)
+    _draw_at(canvas, values.get("provincia"), 420.15 + PAGE4_ADDRESS_OFFSET_X, 791.08 + PAGE4_ADDRESS_OFFSET_Y, 80, 6)
 
 
 def fill_icbc(values: dict[str, Any]) -> bytes:
     stream = BytesIO()
     canvas = Canvas(stream, pagesize=(PAGE_WIDTH, PAGE_HEIGHT), pageCompression=1)
-    for drawer in (_draw_page_1, _draw_page_2, _draw_page_3, _draw_page_4):
+    for page_number, drawer in enumerate((_draw_page_1, _draw_page_2, _draw_page_3, _draw_page_4), 1):
+        if page_number == 4:
+            canvas.setPageSize((OFICIO_WIDTH, OFICIO_HEIGHT))
         drawer(canvas, values)
         canvas.showPage()
     canvas.save()
