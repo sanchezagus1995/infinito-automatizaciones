@@ -4,5 +4,7 @@ jinja2==3.1.6
 httpx==0.28.1
 python-multipart==0.0.20
 pypdf==6.1.1
+PyMuPDF==1.26.6
+reportlab==4.4.4
 num2words==0.5.14
 pytest==8.4.1
