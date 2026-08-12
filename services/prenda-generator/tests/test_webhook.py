@@ -3,7 +3,13 @@ import os
 import pytest
 from fastapi import HTTPException
 
-from app.main import _authorize_session, _bank_from_operation, _page_id_from_webhook, _session_token
+from app.main import (
+    _authorize_session,
+    _bank_from_operation,
+    _page_id_from_webhook,
+    _session_token,
+    _validate_bank_product,
+)
 
 
 def test_page_id_from_notion_webhook():
@@ -36,3 +42,10 @@ def test_bank_routes_are_separate():
 
     with pytest.raises(HTTPException):
         _bank_from_operation({"bancos": ["Galicia", "ICBC"]})
+
+
+def test_icbc_uva_is_not_available_yet():
+    _validate_bank_product({"tasa": "Tradicional"}, "icbc")
+    with pytest.raises(HTTPException) as error:
+        _validate_bank_product({"tasa": "UVA"}, "icbc")
+    assert "todavía no está disponible" in error.value.detail
