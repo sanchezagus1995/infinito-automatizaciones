@@ -53,13 +53,24 @@ def test_final_packet_has_five_printable_pages_and_normal_text_fields():
     for page in reader.pages:
         assert round(float(page.mediabox.width), 2) == 595.32
         assert round(float(page.mediabox.height), 2) == 841.92
-    assert reader.get_fields() is None
-    assert "/AcroForm" not in reader.trailer["/Root"]
-    assert all(
-        annotation.get_object().get("/Subtype") != "/Widget"
+    fields = reader.get_fields() or {}
+    assert "/AcroForm" in reader.trailer["/Root"]
+    assert fields
+    assert any(
+        annotation.get_object().get("/Subtype") == "/Widget"
         for page in reader.pages
         for annotation in page.get("/Annots", [])
     )
+    assert all(
+        annotation.get_object().get("/AP", {}).get_object().get("/N")
+        for page in reader.pages
+        for annotation in page.get("/Annots", [])
+        if annotation.get_object().get("/Subtype") == "/Widget"
+    )
+    assert fields["nombre titular"]["/V"] == "ADRIANA RAMORA"
+    for field in fields.values():
+        if field.get("/FT") == "/Tx":
+            assert int(field.get("/Ff", 0)) & 16777216 == 0
 
 
 def test_second_printable_page_is_shifted_five_mm_down():
