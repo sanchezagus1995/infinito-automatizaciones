@@ -44,6 +44,55 @@ A4_HEIGHT = 841.92
 MM_TO_POINTS = 72 / 25.4
 SECOND_PRINTABLE_PAGE_OFFSET_Y = -5 * MM_TO_POINTS
 
+# Final AcroForm rectangles measured from the physically corrected Galicia
+# packet approved on 2026-08-18. Keys contain the printable page,
+# effective field name and the pre-correction rectangle rounded to 2 decimals.
+# This keeps duplicate field names unambiguous and fails safely if the bank
+# template or an earlier transformation changes.
+FINAL_WIDGET_RECTS = {
+    (1, "dominio", (262.55, 704.2, 362.47, 724.0)): (262.25, 692.5, 362.47, 711.7),
+    (1, "monto de prenda", (130.23, 700.9, 228.65, 717.7)): (130.23, 693.1, 228.65, 709.9),
+    (1, "cuil", (348.87, 603.83, 552.11, 621.84)): (349.87, 604.89, 553.31, 622.89),
+    (1, "nro calle", (354.47, 537.0, 396.88, 554.61)): (354.67, 540.68, 396.68, 558.08),
+    (1, "codigo postal", (495.3, 539.81, 547.31, 556.61)): (495.1, 542.48, 547.31, 559.28),
+    (1, "partido", (352.07, 495.79, 459.29, 511.39)): (352.27, 499.27, 459.09, 514.87),
+    (1, "provincia", (475.3, 496.19, 550.51, 512.59)): (475.9, 499.27, 550.91, 515.47),
+    (1, "dni", (348.55, 422.16, 422.01, 438.01)): (348.97, 427.26, 422.19, 443.16),
+    (1, "ARG", (362.17, 443.76, 379.88, 455.77)): (362.47, 451.56, 380.18, 463.57),
+    (1, "EXT", (466.17, 444.25, 485.86, 456.26)): (466.59, 452.16, 486.1, 464.17),
+    (1, "soltero 03", (423.69, 375.65, 437.79, 390.96)): (423.69, 378.65, 437.79, 393.96),
+    (1, "casado 03", (453.09, 375.65, 468.39, 390.96)): (453.09, 378.35, 468.39, 393.66),
+    (1, "div 03", (509.86, 375.09, 529.07, 390.46)): (509.8, 377.75, 529.01, 393.06),
+    (1, "apellido y nombre", (350.02, 628.29, 582.27, 648.69)): (349.27, 625.89, 581.52, 646.29),
+    (2, "monto de prenda", (144.03, 720.89, 224.62, 734.92)): (144.03, 728.8, 224.75, 742.61),
+    (2, "nombre titular", (133.59, 687.79, 315.29, 700.38)): (117.62, 692.5, 299.46, 705.1),
+    (2, "TNA", (278.57, 404.49, 301.64, 417.45)): (285.36, 426.66, 308.46, 439.56),
+    (2, "calle", (104.99, 486.93, 276.88, 499.48)): (105.02, 497.77, 276.96, 510.37),
+    (2, "nro calle", (539.08, 486.66, 571.46, 499.61)): (538.91, 498.07, 571.32, 511.27),
+    (2, "provincia", (244.23, 566.27, 312.23, 578.81)): (243.95, 573.98, 312.06, 586.58),
+    (2, "localidad", (146.91, 499.61, 255.2, 512.57)): (147.33, 514.87, 255.65, 527.78),
+    (2, "nombre titular", (395.88, 258.19, 570.02, 271.14)): (396.08, 281.44, 570.11, 294.64),
+    (2, "profesion", (474.32, 236.96, 568.59, 250.28)): (474.1, 260.44, 568.31, 273.64),
+    (2, "estado civil", (366.02, 236.96, 418.19, 250.28)): (366.07, 260.44, 418.28, 273.64),
+    (2, "nacionalidad", (376.46, 209.62, 466.4, 222.57)): (376.28, 232.83, 466.29, 246.04),
+    (2, "edad", (501.66, 209.26, 531.53, 222.57)): (501.7, 232.83, 531.71, 246.04),
+    (2, "calle", (355.14, 190.91, 526.76, 204.4)): (355.27, 214.23, 526.91, 228.03),
+    (2, "nro calle", (318.17, 175.44, 356.31, 188.75)): (318.06, 198.63, 356.47, 212.43),
+    (2, "dni", (428.0, 157.18, 493.84, 170.54)): (427.89, 180.63, 493.9, 193.83),
+    (2, "provincia", (336.88, 747.51, 404.88, 759.75)): (336.97, 754.61, 404.78, 766.91),
+    (2, "dia armado", (409.92, 747.51, 427.91, 762.62)): (410.18, 753.11, 428.19, 768.41),
+    (2, "mes armado", (432.22, 747.15, 450.21, 762.26)): (432.39, 752.51, 450.39, 767.81),
+    (2, "año armado", (453.81, 747.87, 471.8, 762.98)): (453.99, 753.41, 472.0, 768.41),
+    (2, "localidad", (356.31, 175.44, 432.22, 188.75)): (356.47, 198.63, 432.09, 212.43),
+    (2, "partido", (432.22, 175.44, 503.82, 188.75)): (432.09, 198.63, 504.1, 212.43),
+    (2, "provincia", (503.82, 175.44, 571.46, 188.75)): (504.1, 198.63, 571.32, 212.43),
+    (3, "plazo", (265.82, 798.34, 281.33, 811.29)): (267.95, 785.81, 283.56, 798.71),
+    (3, "mail", (162.38, 559.84, 291.9, 575.31)): (162.33, 552.68, 291.96, 567.98),
+    (3, "año vto", (179.06, 782.82, 191.34, 795.1)): (181.24, 770.21, 193.54, 782.51),
+    (3, "mes vto", (161.25, 782.82, 173.53, 795.1)): (163.23, 770.21, 175.54, 782.51),
+    (3, "dia vto", (142.23, 783.09, 154.51, 795.37)): (144.33, 770.51, 156.63, 782.81),
+}
+
 
 SMALL_FIELDS = {
     "monto de prenda en letras": 6.5,
@@ -155,6 +204,35 @@ def _fit_contract_pages_to_a4(writer: PdfWriter) -> None:
     _transform_widget_rects(
         second_printable_page, 1.0, 0, SECOND_PRINTABLE_PAGE_OFFSET_Y
     )
+
+
+def _apply_final_widget_rects(writer: PdfWriter) -> None:
+    applied = set()
+    for page_number, page in enumerate(writer.pages, 1):
+        for ref in page.get("/Annots", []):
+            widget = ref.get_object()
+            if widget.get("/Subtype") != "/Widget":
+                continue
+            name = _effective_name(widget)
+            rect = widget.get("/Rect")
+            if not name or not rect:
+                continue
+            source_rect = tuple(round(float(value), 2) for value in rect)
+            key = (page_number, str(name), source_rect)
+            target_rect = FINAL_WIDGET_RECTS.get(key)
+            if target_rect is None:
+                continue
+            widget[NameObject("/Rect")] = ArrayObject([
+                FloatObject(value) for value in target_rect
+            ])
+            applied.add(key)
+
+    missing = set(FINAL_WIDGET_RECTS) - applied
+    if missing:
+        raise ValueError(
+            "No se pudieron aplicar todas las coordenadas finales de Galicia: "
+            f"{sorted(missing)}"
+        )
 
 
 def _upper(value: Any) -> str:
@@ -295,6 +373,7 @@ def fill_galicia(values: dict[str, Any]) -> bytes:
     # The first page is only the bank's data-entry sheet. The five following
     # pages are the stable printable packet used by the operations team.
     del writer.pages[0]
+    _apply_final_widget_rects(writer)
     output = BytesIO()
     writer.write(output)
     # Preserve the AcroForm widgets instead of rasterizing the packet. This
