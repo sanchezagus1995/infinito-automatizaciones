@@ -4,6 +4,7 @@ from pypdf import PdfReader
 
 from app.icbc_pdf import fill_icbc, values_from_icbc_form
 from app.pdf_form import (
+    FINAL_WIDGET_RECTS,
     SECOND_PRINTABLE_PAGE_OFFSET_Y,
     fill_galicia,
     money,
@@ -71,6 +72,25 @@ def test_final_packet_has_five_printable_pages_and_normal_text_fields():
     for field in fields.values():
         if field.get("/FT") == "/Tx":
             assert int(field.get("/Ff", 0)) & 16777216 == 0
+
+    actual_rects = set()
+    for page_number, page in enumerate(reader.pages, 1):
+        for annotation in page.get("/Annots", []):
+            widget = annotation.get_object()
+            if widget.get("/Subtype") != "/Widget":
+                continue
+            parent_ref = widget.get("/Parent")
+            parent = parent_ref.get_object() if parent_ref else None
+            name = widget.get("/T") or (parent.get("/T") if parent else None)
+            rect = tuple(round(float(value), 2) for value in widget.get("/Rect", []))
+            actual_rects.add((page_number, str(name), rect))
+
+    expected_rects = {
+        (page_number, name, target_rect)
+        for (page_number, name, _), target_rect in FINAL_WIDGET_RECTS.items()
+    }
+    assert len(FINAL_WIDGET_RECTS) == 41
+    assert expected_rects <= actual_rects
 
 
 def test_second_printable_page_is_shifted_five_mm_down():
