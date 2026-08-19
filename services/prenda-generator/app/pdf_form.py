@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from pypdf.generic import (
     NumberObject,
     TextStringObject,
 )
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "galicia" / "galicia_form.pdf"
@@ -67,10 +69,10 @@ FINAL_WIDGET_RECTS = {
     (2, "monto de prenda", (144.03, 720.89, 224.62, 734.92)): (144.03, 728.8, 224.75, 742.61),
     (2, "nombre titular", (133.59, 687.79, 315.29, 700.38)): (117.62, 692.5, 299.46, 705.1),
     (2, "TNA", (278.57, 404.49, 301.64, 417.45)): (285.36, 426.66, 308.46, 439.56),
-    (2, "calle", (104.99, 486.93, 276.88, 499.48)): (105.02, 497.77, 276.96, 510.37),
+    (2, "calle", (104.99, 486.93, 276.88, 499.48)): (105.02, 497.77, 530.0, 510.37),
     (2, "nro calle", (539.08, 486.66, 571.46, 499.61)): (538.91, 498.07, 571.32, 511.27),
     (2, "provincia", (244.23, 566.27, 312.23, 578.81)): (243.95, 573.98, 312.06, 586.58),
-    (2, "localidad", (146.91, 499.61, 255.2, 512.57)): (147.33, 514.87, 255.65, 527.78),
+    (2, "localidad", (146.91, 499.61, 255.2, 512.57)): (147.33, 514.87, 530.0, 527.78),
     (2, "nombre titular", (395.88, 258.19, 570.02, 271.14)): (396.08, 281.44, 570.11, 294.64),
     (2, "profesion", (474.32, 236.96, 568.59, 250.28)): (474.1, 260.44, 568.31, 273.64),
     (2, "estado civil", (366.02, 236.96, 418.19, 250.28)): (366.07, 260.44, 418.28, 273.64),
@@ -94,20 +96,10 @@ FINAL_WIDGET_RECTS = {
 }
 
 
-SMALL_FIELDS = {
-    "monto de prenda en letras": 6.5,
-    "nombre titular": 8.5,
-    "apellido y nombre": 8.5,
-    "titular casado": 8.5,
-    "nombre conyuge": 8.5,
-    "domicilio conyuge": 8.0,
-    "modelo": 8.5,
-    "nro motor": 8.5,
-    "nro chasis": 8.0,
-    "calle": 8.5,
-    "mail": 8.0,
-    "cuil": 8.5,
-}
+MAX_FONT_SIZE = 10.0
+MIN_FONT_SIZE = 8.0
+MIN_HORIZONTAL_SCALE = 75.0
+FIELD_HORIZONTAL_PADDING = 4.0
 
 
 def _effective_name(widget: Any) -> Any:
@@ -116,7 +108,47 @@ def _effective_name(widget: Any) -> Any:
     return widget.get("/T") or (parent.get("/T") if parent else None)
 
 
-def _set_widget_style(writer: PdfWriter) -> None:
+def _fit_text_style(text: str, rect: Any) -> tuple[float, float]:
+    """Balance font size and horizontal scale for a single-line widget."""
+    if not text:
+        return MAX_FONT_SIZE, 100.0
+    width = abs(float(rect[2]) - float(rect[0])) - FIELD_HORIZONTAL_PADDING
+    width_at_one_point = stringWidth(text, "Helvetica", 1)
+    if width <= 0 or width_at_one_point <= 0:
+        return MAX_FONT_SIZE, 100.0
+
+    natural_width = width_at_one_point * MAX_FONT_SIZE
+    if natural_width <= width:
+        return MAX_FONT_SIZE, 100.0
+
+    scale_at_maximum = math.floor((width / natural_width) * 1000) / 10
+    if scale_at_maximum >= MIN_HORIZONTAL_SCALE:
+        return MAX_FONT_SIZE, scale_at_maximum
+
+    fitted_size = math.floor(
+        (width / (width_at_one_point * MIN_HORIZONTAL_SCALE / 100)) * 10
+    ) / 10
+    size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, fitted_size))
+    scale = math.floor((width / (width_at_one_point * size)) * 1000) / 10
+    return size, min(100.0, scale)
+
+
+def _set_vehicle_widget_rects(writer: PdfWriter) -> None:
+    # Vehicle data lives on source page 3 (final page 2 after removing the
+    # data-entry sheet). Its rectangles must be set before fitting the source
+    # contract pages to A4.
+    page = writer.pages[2]
+    for ref in page.get("/Annots", []):
+        widget = ref.get_object()
+        name = _effective_name(widget)
+        if str(name) not in VEHICLE_RECTS:
+            continue
+        widget[NameObject("/Rect")] = ArrayObject([
+            FloatObject(value) for value in VEHICLE_RECTS[str(name)]
+        ])
+
+
+def _set_widget_style(writer: PdfWriter, values: dict[str, Any]) -> None:
     acroform = writer.root_object["/AcroForm"].get_object()
     resources = acroform.get("/DR") or DictionaryObject()
     fonts = resources.get("/Font") or DictionaryObject()
@@ -129,7 +161,7 @@ def _set_widget_style(writer: PdfWriter) -> None:
     resources[NameObject("/Font")] = fonts
     acroform[NameObject("/DR")] = resources
 
-    for page_number, page in enumerate(writer.pages, 1):
+    for page in writer.pages:
         for ref in page.get("/Annots", []):
             widget = ref.get_object()
             if widget.get("/Subtype") != "/Widget":
@@ -148,19 +180,16 @@ def _set_widget_style(writer: PdfWriter) -> None:
             flags = int(target.get("/Ff", 0)) & ~16777216
             target[NameObject("/Ff")] = NumberObject(flags)
             widget[NameObject("/Ff")] = NumberObject(flags)
-            size = SMALL_FIELDS.get(str(name), 10.0)
-            appearance = TextStringObject(f"/Helv {size:g} Tf 0 g")
+            size, horizontal_scale = _fit_text_style(
+                str(values.get(str(name), "")), widget["/Rect"]
+            )
+            appearance = TextStringObject(
+                f"/Helv {size:g} Tf {horizontal_scale:g} Tz 0 g"
+            )
             widget[NameObject("/DA")] = appearance
             target[NameObject("/DA")] = appearance
             widget[NameObject("/Q")] = NumberObject(0)
             target[NameObject("/Q")] = NumberObject(0)
-
-            # Vehicle data lives on source page 3 (final page 2 after removing
-            # the data-entry sheet).
-            if page_number == 3 and str(name) in VEHICLE_RECTS:
-                widget[NameObject("/Rect")] = ArrayObject([
-                    FloatObject(value) for value in VEHICLE_RECTS[str(name)]
-                ])
 
 
 def _transform_widget_rects(page: Any, scale: float, tx: float, ty: float) -> None:
@@ -367,13 +396,17 @@ def fill_galicia(values: dict[str, Any]) -> bytes:
     missing = set(values) - set(available)
     if missing:
         raise ValueError(f"Faltan campos en la plantilla Galicia: {sorted(missing)}")
-    _set_widget_style(writer)
-    writer.update_page_form_field_values(None, values, auto_regenerate=False)
+    _set_vehicle_widget_rects(writer)
     _fit_contract_pages_to_a4(writer)
     # The first page is only the bank's data-entry sheet. The five following
     # pages are the stable printable packet used by the operations team.
     del writer.pages[0]
     _apply_final_widget_rects(writer)
+    # Generate each appearance only after every widget has its final rectangle.
+    # Long values receive a widget-specific font size, so the same field can fit
+    # both a wide occurrence and a narrower repeated occurrence in the packet.
+    _set_widget_style(writer, values)
+    writer.update_page_form_field_values(None, values, auto_regenerate=False)
     output = BytesIO()
     writer.write(output)
     # Preserve the AcroForm widgets instead of rasterizing the packet. This
