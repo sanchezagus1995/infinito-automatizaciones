@@ -8,6 +8,7 @@ from app.icbc_pdf import fill_icbc, values_from_icbc_form
 from app.pdf_form import (
     FINAL_WIDGET_RECTS,
     SECOND_PRINTABLE_PAGE_OFFSET_Y,
+    USER_FIXED_WIDGET_RECTS,
     fill_galicia,
     money,
     money_words,
@@ -30,6 +31,7 @@ def test_uva_and_cuil_mapping():
     assert values["cuil"] == "27-12345678-6"
     assert values["monto uva"] == "$1.000.000,00"
     assert values["dia vto"] == "10"
+    assert values["TNA / 12"] == "5.00"
 
 
 def test_final_packet_has_five_printable_pages_and_normal_text_fields():
@@ -84,15 +86,21 @@ def test_final_packet_has_five_printable_pages_and_normal_text_fields():
             parent_ref = widget.get("/Parent")
             parent = parent_ref.get_object() if parent_ref else None
             name = widget.get("/T") or (parent.get("/T") if parent else None)
-            rect = tuple(round(float(value), 2) for value in widget.get("/Rect", []))
+            rect = tuple(round(float(value), 4) for value in widget.get("/Rect", []))
             actual_rects.add((page_number, str(name), rect))
 
     expected_rects = {
-        (page_number, name, target_rect)
+        (page_number, name, tuple(round(value, 4) for value in target_rect))
         for (page_number, name, _), target_rect in FINAL_WIDGET_RECTS.items()
     }
+    fixed_rects = {
+        (page_number, name, tuple(round(value, 4) for value in target_rect))
+        for (page_number, name, _), target_rect in USER_FIXED_WIDGET_RECTS.items()
+    }
     assert len(FINAL_WIDGET_RECTS) == 41
-    assert expected_rects <= actual_rects
+    assert len(USER_FIXED_WIDGET_RECTS) == 26
+    assert (expected_rects - set(USER_FIXED_WIDGET_RECTS)) <= actual_rects
+    assert fixed_rects <= actual_rects
 
 
 def test_second_printable_page_is_shifted_five_mm_down():
