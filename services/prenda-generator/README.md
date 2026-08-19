@@ -1,6 +1,6 @@
 # Prenda Generator
 
-Servicio independiente para precargar datos de una operación desde Notion y completar la plantilla PDF oficial de cada entidad.
+Servicio independiente para precargar datos de una operación desde Notion y generar los PDF de prendas de cada entidad.
 
 ## Primera entidad: Banco Galicia
 
@@ -9,9 +9,9 @@ Servicio independiente para precargar datos de una operación desde Notion y com
 - Lee la operación mediante `GET /prenda/{page_id}?session=...`.
 - Precarga `tasa` (Tradicional/UVA) y `CUIL CUIT`, además de los campos comunes.
 - Pide solamente los datos documentales que no están en Notion.
-- Completa los 51 campos AcroForm del PDF oficial.
+- Genera cinco páginas A4 con texto y marcas vectoriales en las coordenadas verificadas físicamente.
 - Imprime `Bruto` en `monto uva` únicamente cuando `tasa` contiene `UVA`.
-- Descarga un PDF editable para hacer la primera validación de impresión.
+- El resultado no depende de una plantilla AcroForm ni contiene imágenes rasterizadas; puede corregirse con el editor de texto de Nitro PDF si fuera necesario.
 
 ## Variables
 
@@ -36,8 +36,7 @@ El webhook que debe usar el botón de Notion es:
 https://SERVICIO/webhook?token=FORM_TOKEN
 ```
 
-## Próximas etapas
+## Entidades disponibles
 
-1. Validar una impresión Galicia con datos reales.
-2. Guardar el PDF en Drive y escribir su URL en Notion.
-3. Incorporar ICBC reutilizando el mismo formulario común y su propia plantilla.
+- Banco Galicia.
+- ICBC tradicional.

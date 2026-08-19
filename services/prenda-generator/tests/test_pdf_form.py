@@ -1,14 +1,12 @@
 from io import BytesIO
-import re
 
 from pypdf import PdfReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from app.icbc_pdf import fill_icbc, values_from_icbc_form
+from app.galicia_layout import MARK_PLACEMENTS, STATIC_TEXT, TEXT_PLACEMENTS
 from app.pdf_form import (
-    FINAL_WIDGET_RECTS,
-    SECOND_PRINTABLE_PAGE_OFFSET_Y,
-    USER_FIXED_WIDGET_RECTS,
+    _fit_text_style,
     fill_galicia,
     money,
     money_words,
@@ -34,7 +32,7 @@ def test_uva_and_cuil_mapping():
     assert values["TNA / 12"] == "5.00"
 
 
-def test_final_packet_has_five_printable_pages_and_normal_text_fields():
+def test_final_packet_has_five_vector_pages_without_acroform_or_images():
     values = values_from_form({
         "nombre": "Adriana Ramora",
         "dni": 20301230,
@@ -58,53 +56,32 @@ def test_final_packet_has_five_printable_pages_and_normal_text_fields():
     for page in reader.pages:
         assert round(float(page.mediabox.width), 2) == 595.32
         assert round(float(page.mediabox.height), 2) == 841.92
-    fields = reader.get_fields() or {}
-    assert "/AcroForm" in reader.trailer["/Root"]
-    assert fields
-    assert any(
-        annotation.get_object().get("/Subtype") == "/Widget"
-        for page in reader.pages
-        for annotation in page.get("/Annots", [])
-    )
-    assert all(
-        annotation.get_object().get("/AP", {}).get_object().get("/N")
-        for page in reader.pages
-        for annotation in page.get("/Annots", [])
-        if annotation.get_object().get("/Subtype") == "/Widget"
-    )
-    assert fields["nombre titular"]["/V"] == "ADRIANA RAMORA"
-    for field in fields.values():
-        if field.get("/FT") == "/Tx":
-            assert int(field.get("/Ff", 0)) & 16777216 == 0
+    assert reader.get_fields() is None
+    assert "/AcroForm" not in reader.trailer["/Root"]
+    assert all(not page.get("/Annots") for page in reader.pages)
+    assert all("/XObject" not in page["/Resources"] for page in reader.pages)
+    assert all(b" BT" in page.get_contents().get_data() for page in reader.pages)
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    assert "ADRIANA RAMORA" in text
+    assert "BANCO DE GALICIA Y BUENOS AIRES S.A.U." in text
+    assert "$15.345.002,34" in text
 
-    actual_rects = set()
-    for page_number, page in enumerate(reader.pages, 1):
-        for annotation in page.get("/Annots", []):
-            widget = annotation.get_object()
-            if widget.get("/Subtype") != "/Widget":
-                continue
-            parent_ref = widget.get("/Parent")
-            parent = parent_ref.get_object() if parent_ref else None
-            name = widget.get("/T") or (parent.get("/T") if parent else None)
-            rect = tuple(round(float(value), 4) for value in widget.get("/Rect", []))
-            actual_rects.add((page_number, str(name), rect))
 
-    expected_rects = {
-        (page_number, name, tuple(round(value, 4) for value in target_rect))
-        for (page_number, name, _), target_rect in FINAL_WIDGET_RECTS.items()
+def test_layout_is_the_physically_corrected_packet():
+    assert len(TEXT_PLACEMENTS) == 76
+    assert len(MARK_PLACEMENTS) == 5
+    assert len(STATIC_TEXT) == 29
+    fixed_marks = {
+        (text, tuple(round(value, 4) for value in rect))
+        for page, text, rect, _, _ in STATIC_TEXT
+        if page == 1 and text in {"X", "1"}
     }
-    fixed_rects = {
-        (page_number, name, tuple(round(value, 4) for value in target_rect))
-        for (page_number, name, _), target_rect in USER_FIXED_WIDGET_RECTS.items()
+    assert fixed_marks == {
+        ("X", (458.5725, 175.8862, 466.5645, 189.2782)),
+        ("X", (516.8842, 82.6798, 524.8762, 96.0718)),
+        ("X", (516.8842, 46.9968, 524.8762, 60.3888)),
+        ("1", (377.0563, 71.3499, 383.7283, 84.7419)),
     }
-    assert len(FINAL_WIDGET_RECTS) == 41
-    assert len(USER_FIXED_WIDGET_RECTS) == 26
-    assert (expected_rects - set(USER_FIXED_WIDGET_RECTS)) <= actual_rects
-    assert fixed_rects <= actual_rects
-
-
-def test_second_printable_page_is_shifted_five_mm_down():
-    assert round(SECOND_PRINTABLE_PAGE_OFFSET_Y, 4) == round(-5 * 72 / 25.4, 4)
 
 
 def test_long_galicia_text_adapts_to_each_widget_width():
@@ -124,7 +101,6 @@ def test_long_galicia_text_adapts_to_each_widget_width():
         "calle": "Rio Limay y Volcan Lanin Manzana D1 Casa N° 15",
         "dominio": "AH018XV",
     })
-    reader = PdfReader(BytesIO(fill_galicia(values)))
     styles_by_name = {
         "localidad": [],
         "calle": [],
@@ -132,39 +108,26 @@ def test_long_galicia_text_adapts_to_each_widget_width():
         "monto de prenda en letras": [],
     }
 
-    for page in reader.pages:
-        for annotation in page.get("/Annots", []):
-            widget = annotation.get_object()
-            if widget.get("/Subtype") != "/Widget":
-                continue
-            parent_ref = widget.get("/Parent")
-            parent = parent_ref.get_object() if parent_ref else None
-            target = parent if parent is not None else widget
-            if target.get("/FT") != "/Tx":
-                continue
-            name = str(widget.get("/T") or (parent.get("/T") if parent else ""))
-            appearance = widget["/AP"]["/N"].get_object().get_data().decode("latin-1")
-            size_match = re.search(r"/Helv\s+([0-9.]+)\s+Tf", appearance)
-            scale_match = re.search(r"([0-9.]+)\s+Tz", appearance)
-            assert size_match, f"No se encontró el tamaño de fuente de {name}"
-            assert scale_match, f"No se encontró la escala horizontal de {name}"
-            size = float(size_match.group(1))
-            horizontal_scale = float(scale_match.group(1))
-            if name in styles_by_name:
-                styles_by_name[name].append((size, horizontal_scale))
+    for _, name, rect in TEXT_PLACEMENTS:
+        text = values[name]
+        size, horizontal_scale = _fit_text_style(text, rect[2] - rect[0])
+        if name in styles_by_name:
+            styles_by_name[name].append((size, horizontal_scale))
 
-            rect = widget["/Rect"]
-            available_width = abs(float(rect[2]) - float(rect[0])) - 4
-            rendered_width = (
-                stringWidth(values[name], "Helvetica", size) * horizontal_scale / 100
-            )
-            assert rendered_width <= available_width + 0.1
-            assert size >= 8.0
+        available_width = rect[2] - rect[0] - 4
+        rendered_width = stringWidth(text, "Helvetica", size) * horizontal_scale / 100
+        assert rendered_width <= available_width + 0.1
+        assert size >= 8.0
 
     assert (10.0, 100.0) in styles_by_name["localidad"]
     assert (10.0, 100.0) in styles_by_name["calle"]
     assert set(styles_by_name["dominio"]) == {(10.0, 100.0)}
     assert set(styles_by_name["monto de prenda en letras"]) == {(10.0, 100.0)}
+
+    reader = PdfReader(BytesIO(fill_galicia(values)))
+    content = b"\n".join(page.get_contents().get_data() for page in reader.pages)
+    assert b" Tz" in content
+    assert b" Tj" in content
 
 
 def test_icbc_packet_uses_manual_pledge_amount_and_oficio_continuation():

@@ -5,127 +5,20 @@ from decimal import Decimal, InvalidOperation
 from io import BytesIO
 import math
 import re
-from pathlib import Path
 from typing import Any
 
 from num2words import num2words
-from pypdf import PdfReader, PdfWriter, Transformation
-from pypdf.generic import (
-    ArrayObject,
-    DictionaryObject,
-    FloatObject,
-    NameObject,
-    NumberObject,
-    TextStringObject,
-)
+from reportlab.lib.colors import black
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfgen.canvas import Canvas
 
-
-TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "galicia" / "galicia_form.pdf"
-
-
-# The labels are part of the bank form and already sit in the verified physical
-# area. These tighter rectangles put their values on four clean baselines while
-# reserving the longest spaces for engine, chassis and model identifiers.
-VEHICLE_RECTS = {
-    "modelo año": (90.4, 707.2, 130.0, 721.6),
-    "mca motor": (366.8, 707.2, 448.4, 721.6),
-    "nro motor": (498.8, 707.2, 600.4, 721.6),
-    "dominio": (120.0, 694.4, 184.0, 708.8),
-    "marca vehiculo": (234.8, 694.4, 326.8, 708.8),
-    "mca chasis": (390.8, 694.4, 470.4, 708.8),
-    "tipo": (100.0, 680.0, 180.0, 694.4),
-    "tipo de uso": (218.0, 680.0, 286.0, 694.4),
-    "nro chasis": (354.4, 680.0, 510.0, 694.4),
-    "usado/0km": (542.0, 680.0, 592.8, 694.4),
-    "modelo": (139.2, 665.6, 450.0, 680.0),
-}
-
-A4_WIDTH = 595.32
-A4_HEIGHT = 841.92
-MM_TO_POINTS = 72 / 25.4
-SECOND_PRINTABLE_PAGE_OFFSET_Y = -5 * MM_TO_POINTS
-
-# Final AcroForm rectangles measured from the physically corrected Galicia
-# packet approved on 2026-08-18. Keys contain the printable page,
-# effective field name and the pre-correction rectangle rounded to 2 decimals.
-# This keeps duplicate field names unambiguous and fails safely if the bank
-# template or an earlier transformation changes.
-FINAL_WIDGET_RECTS = {
-    (1, "dominio", (262.55, 704.2, 362.47, 724.0)): (262.25, 692.5, 362.47, 711.7),
-    (1, "monto de prenda", (130.23, 700.9, 228.65, 717.7)): (130.23, 693.1, 228.65, 709.9),
-    (1, "cuil", (348.87, 603.83, 552.11, 621.84)): (349.87, 604.89, 553.31, 622.89),
-    (1, "nro calle", (354.47, 537.0, 396.88, 554.61)): (354.67, 540.68, 396.68, 558.08),
-    (1, "codigo postal", (495.3, 539.81, 547.31, 556.61)): (495.1, 542.48, 547.31, 559.28),
-    (1, "partido", (352.07, 495.79, 459.29, 511.39)): (352.27, 499.27, 459.09, 514.87),
-    (1, "provincia", (475.3, 496.19, 550.51, 512.59)): (475.9, 499.27, 550.91, 515.47),
-    (1, "dni", (348.55, 422.16, 422.01, 438.01)): (348.97, 427.26, 422.19, 443.16),
-    (1, "ARG", (362.17, 443.76, 379.88, 455.77)): (362.47, 451.56, 380.18, 463.57),
-    (1, "EXT", (466.17, 444.25, 485.86, 456.26)): (466.59, 452.16, 486.1, 464.17),
-    (1, "soltero 03", (423.69, 375.65, 437.79, 390.96)): (423.69, 378.65, 437.79, 393.96),
-    (1, "casado 03", (453.09, 375.65, 468.39, 390.96)): (453.09, 378.35, 468.39, 393.66),
-    (1, "div 03", (509.86, 375.09, 529.07, 390.46)): (509.8, 377.75, 529.01, 393.06),
-    (1, "apellido y nombre", (350.02, 628.29, 582.27, 648.69)): (349.27, 625.89, 581.52, 646.29),
-    (2, "monto de prenda", (144.03, 720.89, 224.62, 734.92)): (144.03, 728.8, 224.75, 742.61),
-    (2, "nombre titular", (133.59, 687.79, 315.29, 700.38)): (117.62, 692.5, 299.46, 705.1),
-    (2, "TNA", (278.57, 404.49, 301.64, 417.45)): (285.36, 426.66, 308.46, 439.56),
-    (2, "calle", (104.99, 486.93, 276.88, 499.48)): (105.02, 497.77, 530.0, 510.37),
-    (2, "nro calle", (539.08, 486.66, 571.46, 499.61)): (538.91, 498.07, 571.32, 511.27),
-    (2, "provincia", (244.23, 566.27, 312.23, 578.81)): (243.95, 573.98, 312.06, 586.58),
-    (2, "localidad", (146.91, 499.61, 255.2, 512.57)): (147.33, 514.87, 530.0, 527.78),
-    (2, "nombre titular", (395.88, 258.19, 570.02, 271.14)): (396.08, 281.44, 570.11, 294.64),
-    (2, "profesion", (474.32, 236.96, 568.59, 250.28)): (474.1, 260.44, 568.31, 273.64),
-    (2, "estado civil", (366.02, 236.96, 418.19, 250.28)): (366.07, 260.44, 418.28, 273.64),
-    (2, "nacionalidad", (376.46, 209.62, 466.4, 222.57)): (376.28, 232.83, 466.29, 246.04),
-    (2, "edad", (501.66, 209.26, 531.53, 222.57)): (501.7, 232.83, 531.71, 246.04),
-    (2, "calle", (355.14, 190.91, 526.76, 204.4)): (355.27, 214.23, 526.91, 228.03),
-    (2, "nro calle", (318.17, 175.44, 356.31, 188.75)): (318.06, 198.63, 356.47, 212.43),
-    (2, "dni", (428.0, 157.18, 493.84, 170.54)): (427.89, 180.63, 493.9, 193.83),
-    (2, "provincia", (336.88, 747.51, 404.88, 759.75)): (336.97, 754.61, 404.78, 766.91),
-    (2, "dia armado", (409.92, 747.51, 427.91, 762.62)): (410.18, 753.11, 428.19, 768.41),
-    (2, "mes armado", (432.22, 747.15, 450.21, 762.26)): (432.39, 752.51, 450.39, 767.81),
-    (2, "año armado", (453.81, 747.87, 471.8, 762.98)): (453.99, 753.41, 472.0, 768.41),
-    (2, "localidad", (356.31, 175.44, 432.22, 188.75)): (356.47, 198.63, 432.09, 212.43),
-    (2, "partido", (432.22, 175.44, 503.82, 188.75)): (432.09, 198.63, 504.1, 212.43),
-    (2, "provincia", (503.82, 175.44, 571.46, 188.75)): (504.1, 198.63, 571.32, 212.43),
-    (3, "plazo", (265.82, 798.34, 281.33, 811.29)): (267.95, 785.81, 283.56, 798.71),
-    (3, "mail", (162.38, 559.84, 291.9, 575.31)): (162.33, 552.68, 291.96, 567.98),
-    (3, "año vto", (179.06, 782.82, 191.34, 795.1)): (181.24, 770.21, 193.54, 782.51),
-    (3, "mes vto", (161.25, 782.82, 173.53, 795.1)): (163.23, 770.21, 175.54, 782.51),
-    (3, "dia vto", (142.23, 783.09, 154.51, 795.37)): (144.33, 770.51, 156.63, 782.81),
-}
-
-# Final physical-print calibration copied exactly from the Galicia packet fixed
-# by the operations team on 2026-08-19. This second pass starts from the
-# already-corrected rectangles above and reproduces the manually verified PDF.
-USER_FIXED_WIDGET_RECTS = {
-    (1, "mca motor", (191.44, 93.91, 328.87, 109.52)): (191.1385, 97.5139, 328.5662, 113.1161),
-    (1, "nro motor", (186.64, 72.31, 329.47, 89.11)): (186.3376, 75.9108, 329.1664, 92.7132),
-    (1, "mca chasis", (203.74, 53.11, 328.27, 68.71)): (203.441, 56.7081, 327.9661, 72.3103),
-    (1, "nro chasis", (188.14, 32.1, 333.07, 48.31)): (187.8379, 35.7051, 332.7671, 51.9074),
-    (2, "dominio", (130.36, 610.43, 187.92, 623.38)): (130.5263, 613.2874, 188.1379, 626.4893),
-    (2, "calle", (105.02, 497.77, 530.0, 510.37)): (105.3212, 500.1713, 530.2069, 512.7731),
-    (2, "nro calle", (538.91, 498.07, 571.32, 511.27)): (539.2087, 500.4713, 571.6152, 513.6732),
-    (2, "marca vehiculo", (233.62, 610.43, 316.37, 623.38)): (234.0472, 613.2874, 316.5638, 626.4893),
-    (2, "tipo", (112.37, 597.48, 184.32, 610.43)): (112.5227, 600.3856, 184.5372, 613.2874),
-    (2, "modelo", (147.63, 584.53, 427.19, 597.48)): (147.9298, 587.4837, 427.5862, 600.3856),
-    (2, "mca motor", (352.35, 621.94, 425.75, 634.9)): (352.5711, 624.9891, 426.0859, 637.8909),
-    (2, "nro motor", (471.08, 621.94, 562.47, 634.9)): (471.395, 624.9891, 562.9135, 637.8909),
-    (2, "mca chasis", (373.94, 610.43, 445.54, 623.38)): (374.1754, 613.2874, 445.8899, 626.4893),
-    (2, "nro chasis", (341.2, 597.48, 481.16, 610.43)): (341.4688, 600.3856, 481.5971, 613.2874),
-    (2, "modelo año", (103.73, 621.94, 139.35, 634.9)): (104.121, 624.9891, 139.5281, 637.8909),
-    (2, "provincia", (243.95, 573.98, 312.06, 586.58)): (243.9492, 576.9822, 312.0629, 589.584),
-    (2, "partido", (86.78, 544.0, 183.65, 556.96)): (86.7175, 555.6792, 183.637, 568.5811),
-    (2, "localidad", (147.33, 514.87, 530.0, 527.78)): (147.6298, 517.2737, 530.2069, 530.1755),
-    (2, "usado/0km", (509.94, 597.48, 555.63, 610.43)): (510.1028, 600.3856, 556.0121, 613.2874),
-    (2, "tipo de uso", (218.51, 597.48, 279.67, 610.43)): (218.7441, 600.3856, 279.9564, 613.2874),
-    (3, "TNA / 12", (325.36, 630.0, 349.47, 642.95)): (327.6998, 630.0337, 351.7766, 642.9343),
-    (3, "plazo", (267.95, 785.81, 283.56, 798.71)): (272.755, 787.3122, 288.3581, 800.2141),
-    (3, "mail", (162.33, 552.68, 291.96, 567.98)): (162.2727, 555.1965, 291.8988, 570.5653),
-    (3, "año vto", (181.24, 770.21, 193.54, 782.51)): (190.1394, 773.6663, 202.4403, 785.967),
-    (3, "mes vto", (163.23, 770.21, 175.54, 782.51)): (172.138, 773.6663, 184.4389, 785.967),
-    (3, "dia vto", (144.33, 770.51, 156.63, 782.81)): (153.2366, 773.9664, 165.5375, 786.267),
-}
+from .galicia_layout import (
+    MARK_PLACEMENTS,
+    PAGE_HEIGHT,
+    PAGE_WIDTH,
+    STATIC_TEXT,
+    TEXT_PLACEMENTS,
+)
 
 
 MAX_FONT_SIZE = 10.0
@@ -134,178 +27,78 @@ MIN_HORIZONTAL_SCALE = 75.0
 FIELD_HORIZONTAL_PADDING = 4.0
 
 
-def _effective_name(widget: Any) -> Any:
-    parent = widget.get("/Parent")
-    parent = parent.get_object() if parent else None
-    return widget.get("/T") or (parent.get("/T") if parent else None)
-
-
-def _fit_text_style(text: str, rect: Any) -> tuple[float, float]:
-    """Balance font size and horizontal scale for a single-line widget."""
+def _fit_text_style(text: str, width: float) -> tuple[float, float]:
+    """Balance font size and horizontal scale for one vector text item."""
     if not text:
         return MAX_FONT_SIZE, 100.0
-    width = abs(float(rect[2]) - float(rect[0])) - FIELD_HORIZONTAL_PADDING
+    available_width = width - FIELD_HORIZONTAL_PADDING
     width_at_one_point = stringWidth(text, "Helvetica", 1)
-    if width <= 0 or width_at_one_point <= 0:
+    if available_width <= 0 or width_at_one_point <= 0:
         return MAX_FONT_SIZE, 100.0
 
     natural_width = width_at_one_point * MAX_FONT_SIZE
-    if natural_width <= width:
+    if natural_width <= available_width:
         return MAX_FONT_SIZE, 100.0
 
-    scale_at_maximum = math.floor((width / natural_width) * 1000) / 10
+    scale_at_maximum = math.floor((available_width / natural_width) * 1000) / 10
     if scale_at_maximum >= MIN_HORIZONTAL_SCALE:
         return MAX_FONT_SIZE, scale_at_maximum
 
     fitted_size = math.floor(
-        (width / (width_at_one_point * MIN_HORIZONTAL_SCALE / 100)) * 10
+        (
+            available_width
+            / (width_at_one_point * MIN_HORIZONTAL_SCALE / 100)
+        )
+        * 10
     ) / 10
     size = max(MIN_FONT_SIZE, min(MAX_FONT_SIZE, fitted_size))
-    scale = math.floor((width / (width_at_one_point * size)) * 1000) / 10
+    scale = math.floor((available_width / (width_at_one_point * size)) * 1000) / 10
     return size, min(100.0, scale)
 
 
-def _set_vehicle_widget_rects(writer: PdfWriter) -> None:
-    # Vehicle data lives on source page 3 (final page 2 after removing the
-    # data-entry sheet). Its rectangles must be set before fitting the source
-    # contract pages to A4.
-    page = writer.pages[2]
-    for ref in page.get("/Annots", []):
-        widget = ref.get_object()
-        name = _effective_name(widget)
-        if str(name) not in VEHICLE_RECTS:
-            continue
-        widget[NameObject("/Rect")] = ArrayObject([
-            FloatObject(value) for value in VEHICLE_RECTS[str(name)]
-        ])
+def _draw_text(canvas: Canvas, value: Any, rect: tuple[float, ...]) -> None:
+    """Draw a value as regular PDF text, matching the old field appearance."""
+    text = str(value or "")
+    if not text or text.startswith("/"):
+        return
+    x1, _, x2, y2 = rect
+    size, horizontal_scale = _fit_text_style(text, x2 - x1)
+
+    text_object = canvas.beginText()
+    text_object.setTextOrigin(x1 + 2, y2 - size - 1)
+    text_object.setFont("Helvetica", size)
+    text_object.setHorizScale(horizontal_scale)
+    text_object.textOut(text)
+    canvas.setFillColor(black)
+    canvas.drawText(text_object)
 
 
-def _set_widget_style(writer: PdfWriter, values: dict[str, Any]) -> None:
-    acroform = writer.root_object["/AcroForm"].get_object()
-    resources = acroform.get("/DR") or DictionaryObject()
-    fonts = resources.get("/Font") or DictionaryObject()
-    fonts[NameObject("/Helv")] = writer._add_object(DictionaryObject({
-        NameObject("/Type"): NameObject("/Font"),
-        NameObject("/Subtype"): NameObject("/Type1"),
-        NameObject("/BaseFont"): NameObject("/Helvetica"),
-        NameObject("/Encoding"): NameObject("/WinAnsiEncoding"),
-    }))
-    resources[NameObject("/Font")] = fonts
-    acroform[NameObject("/DR")] = resources
-
-    for page in writer.pages:
-        for ref in page.get("/Annots", []):
-            widget = ref.get_object()
-            if widget.get("/Subtype") != "/Widget":
-                continue
-            name = _effective_name(widget)
-            if not name or name == "Button1" or "@" in str(name):
-                continue
-            parent_ref = widget.get("/Parent")
-            parent = parent_ref.get_object() if parent_ref else None
-            target = parent if parent is not None else widget
-            if target.get("/FT") == "/Btn":
-                continue
-
-            # The source marks most text fields as comb fields, which spreads
-            # letters across the rectangle. Keep placement but remove that flag.
-            flags = int(target.get("/Ff", 0)) & ~16777216
-            target[NameObject("/Ff")] = NumberObject(flags)
-            widget[NameObject("/Ff")] = NumberObject(flags)
-            size, horizontal_scale = _fit_text_style(
-                str(values.get(str(name), "")), widget["/Rect"]
-            )
-            appearance = TextStringObject(
-                f"/Helv {size:g} Tf {horizontal_scale:g} Tz 0 g"
-            )
-            widget[NameObject("/DA")] = appearance
-            target[NameObject("/DA")] = appearance
-            widget[NameObject("/Q")] = NumberObject(0)
-            target[NameObject("/Q")] = NumberObject(0)
+def _draw_mark(canvas: Canvas, rect: tuple[float, ...]) -> None:
+    """Draw a vector check mark at the former checkbox position."""
+    x1, y1, x2, y2 = rect
+    height = y2 - y1
+    size = 2.4 if height < 13 else 3.2
+    center_x = (x1 + x2) / 2
+    center_y = (y1 + y2) / 2
+    canvas.setStrokeColor(black)
+    canvas.setLineWidth(0.9)
+    canvas.line(center_x - size, center_y, center_x - size * 0.35, center_y - size * 0.65)
+    canvas.line(center_x - size * 0.35, center_y - size * 0.65, center_x + size, center_y + size * 0.8)
 
 
-def _transform_widget_rects(page: Any, scale: float, tx: float, ty: float) -> None:
-    for ref in page.get("/Annots", []):
-        widget = ref.get_object()
-        rect = widget.get("/Rect")
-        if not rect:
-            continue
-        x1, y1, x2, y2 = (float(value) for value in rect)
-        widget[NameObject("/Rect")] = ArrayObject([
-            FloatObject(x1 * scale + tx), FloatObject(y1 * scale + ty),
-            FloatObject(x2 * scale + tx), FloatObject(y2 * scale + ty),
-        ])
-
-
-def _fit_contract_pages_to_a4(writer: PdfWriter) -> None:
-    # Source page 2 (the "03" sheet) is already A4 and must print at 100%.
-    # Source pages 3-6 previously required the print dialog's "Fit" option.
-    # Bake that proportional fit into the PDF so the whole packet can be sent
-    # with the printer's default/actual-size setting.
-    for page in writer.pages[2:]:
-        width = float(page.mediabox.width)
-        height = float(page.mediabox.height)
-        scale = min(A4_WIDTH / width, A4_HEIGHT / height)
-        tx = (A4_WIDTH - width * scale) / 2
-        ty = (A4_HEIGHT - height * scale) / 2
-        page.add_transformation(Transformation().scale(scale).translate(tx, ty))
-        _transform_widget_rects(page, scale, tx, ty)
-        page.mediabox.lower_left = (0, 0)
-        page.mediabox.upper_right = (A4_WIDTH, A4_HEIGHT)
-        page.cropbox.lower_left = (0, 0)
-        page.cropbox.upper_right = (A4_WIDTH, A4_HEIGHT)
-
-    # A physical comparison showed that the second printable sheet sits about
-    # 5 mm too high after the proportional fit. Move only that sheet down while
-    # preserving its scale and every relative field coordinate.
-    second_printable_page = writer.pages[2]
-    second_printable_page.add_transformation(
-        Transformation().translate(0, SECOND_PRINTABLE_PAGE_OFFSET_Y)
-    )
-    _transform_widget_rects(
-        second_printable_page, 1.0, 0, SECOND_PRINTABLE_PAGE_OFFSET_Y
-    )
-
-
-def _apply_widget_rect_map(
-    writer: PdfWriter,
-    rect_map: dict[tuple[int, str, tuple[float, ...]], tuple[float, ...]],
-    label: str,
+def _draw_static_text(
+    canvas: Canvas,
+    text: str,
+    rect: tuple[float, ...],
+    size: float,
+    bold: bool,
 ) -> None:
-    applied = set()
-    for page_number, page in enumerate(writer.pages, 1):
-        for ref in page.get("/Annots", []):
-            widget = ref.get_object()
-            if widget.get("/Subtype") != "/Widget":
-                continue
-            name = _effective_name(widget)
-            rect = widget.get("/Rect")
-            if not name or not rect:
-                continue
-            source_rect = tuple(round(float(value), 2) for value in rect)
-            key = (page_number, str(name), source_rect)
-            target_rect = rect_map.get(key)
-            if target_rect is None:
-                continue
-            widget[NameObject("/Rect")] = ArrayObject([
-                FloatObject(value) for value in target_rect
-            ])
-            applied.add(key)
-
-    missing = set(rect_map) - applied
-    if missing:
-        raise ValueError(
-            f"No se pudieron aplicar todas las coordenadas {label} de Galicia: "
-            f"{sorted(missing)}"
-        )
-
-
-def _apply_final_widget_rects(writer: PdfWriter) -> None:
-    _apply_widget_rect_map(writer, FINAL_WIDGET_RECTS, "finales")
-
-
-def _apply_user_fixed_widget_rects(writer: PdfWriter) -> None:
-    _apply_widget_rect_map(writer, USER_FIXED_WIDGET_RECTS, "fixed")
+    """Draw fixed Galicia/registry data formerly stored as PDF annotations."""
+    x1, y1, _, _ = rect
+    canvas.setFillColor(black)
+    canvas.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+    # Acrobat's old FreeText appearances used this baseline proportion.
+    canvas.drawString(x1, y1 + size * 0.211, text.replace("˚", "°"))
 
 
 def _upper(value: Any) -> str:
@@ -334,7 +127,7 @@ def _decimal(value: Any) -> Decimal:
     try:
         return Decimal(text)
     except InvalidOperation as exc:
-        raise ValueError("El monto bruto no tiene un formato válido") from exc
+        raise ValueError("El monto no tiene un formato válido") from exc
 
 
 def money(value: Any) -> str:
@@ -422,39 +215,38 @@ def values_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "monto casado": money(bruto) if civil == "CASADO" else "",
         "usado/0km": _upper(form.get("condicion")),
         "tipo de uso": _upper(form.get("tipo_uso")),
-        "dia armado": armed[0], "mes armado": armed[1], "año armado": armed[2],
+        "dia armado": armed[0],
+        "mes armado": armed[1],
+        "año armado": armed[2],
         "soltero 03": "/Yes" if civil == "SOLTERO" else "/Off",
         "casado 03": "/Yes" if civil == "CASADO" else "/Off",
         "div 03": "/Yes" if civil == "DIVORCIADO" else "/Off",
-        "dia nac": birth[0], "mes nac": birth[1], "año nac": birth[2],
+        "dia nac": birth[0],
+        "mes nac": birth[1],
+        "año nac": birth[2],
         "apellido y nombre": _upper(form.get("nombre")),
-        "dia vto": due[0], "mes vto": due[1], "año vto": due[2],
+        "dia vto": due[0],
+        "mes vto": due[1],
+        "año vto": due[2],
     }
 
 
 def fill_galicia(values: dict[str, Any]) -> bytes:
-    reader = PdfReader(TEMPLATE)
-    writer = PdfWriter()
-    writer.clone_document_from_reader(reader)
-    available = writer.get_fields() or {}
-    missing = set(values) - set(available)
-    if missing:
-        raise ValueError(f"Faltan campos en la plantilla Galicia: {sorted(missing)}")
-    _set_vehicle_widget_rects(writer)
-    _fit_contract_pages_to_a4(writer)
-    # The first page is only the bank's data-entry sheet. The five following
-    # pages are the stable printable packet used by the operations team.
-    del writer.pages[0]
-    _apply_final_widget_rects(writer)
-    _apply_user_fixed_widget_rects(writer)
-    # Generate each appearance only after every widget has its final rectangle.
-    # Long values receive a widget-specific font size, so the same field can fit
-    # both a wide occurrence and a narrower repeated occurrence in the packet.
-    _set_widget_style(writer, values)
-    writer.update_page_form_field_values(None, values, auto_regenerate=False)
-    output = BytesIO()
-    writer.write(output)
-    # Preserve the AcroForm widgets instead of rasterizing the packet. This
-    # keeps every Galicia value editable and movable in a PDF form editor while
-    # retaining the calibrated page sizes and widget coordinates.
-    return output.getvalue()
+    """Create the five-page Galicia packet as editable vector PDF text."""
+    stream = BytesIO()
+    canvas = Canvas(stream, pagesize=(PAGE_WIDTH, PAGE_HEIGHT), pageCompression=1)
+
+    for page_number in range(1, 6):
+        for item_page, text, rect, size, bold in STATIC_TEXT:
+            if item_page == page_number:
+                _draw_static_text(canvas, text, rect, size, bold)
+        for item_page, name, rect in TEXT_PLACEMENTS:
+            if item_page == page_number:
+                _draw_text(canvas, values.get(name), rect)
+        for item_page, name, rect in MARK_PLACEMENTS:
+            if item_page == page_number and values.get(name) == "/Yes":
+                _draw_mark(canvas, rect)
+        canvas.showPage()
+
+    canvas.save()
+    return stream.getvalue()
