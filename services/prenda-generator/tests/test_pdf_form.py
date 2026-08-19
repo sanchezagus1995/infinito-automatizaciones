@@ -1,6 +1,8 @@
 from io import BytesIO
+import re
 
 from pypdf import PdfReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from app.icbc_pdf import fill_icbc, values_from_icbc_form
 from app.pdf_form import (
@@ -95,6 +97,66 @@ def test_final_packet_has_five_printable_pages_and_normal_text_fields():
 
 def test_second_printable_page_is_shifted_five_mm_down():
     assert round(SECOND_PRINTABLE_PAGE_OFFSET_Y, 4) == round(-5 * 72 / 25.4, 4)
+
+
+def test_long_galicia_text_adapts_to_each_widget_width():
+    values = values_from_form({
+        "nombre": "Ornela Ainara Leal",
+        "dni": 12345678,
+        "cuil": 27123456786,
+        "bruto": 1000000,
+        "tna": 60,
+        "tasa": "Tradicional",
+        "estado_civil": "Soltero",
+        "nacionalidad": "Argentina",
+        "fecha_nacimiento": "1990-02-10",
+        "fecha_armado": "2026-08-18",
+        "fecha_vencimiento": "2026-09-10",
+        "localidad": "San Patricio del Chañar",
+        "calle": "Rio Limay y Volcan Lanin Manzana D1 Casa N° 15",
+        "dominio": "AH018XV",
+    })
+    reader = PdfReader(BytesIO(fill_galicia(values)))
+    styles_by_name = {
+        "localidad": [],
+        "calle": [],
+        "dominio": [],
+        "monto de prenda en letras": [],
+    }
+
+    for page in reader.pages:
+        for annotation in page.get("/Annots", []):
+            widget = annotation.get_object()
+            if widget.get("/Subtype") != "/Widget":
+                continue
+            parent_ref = widget.get("/Parent")
+            parent = parent_ref.get_object() if parent_ref else None
+            target = parent if parent is not None else widget
+            if target.get("/FT") != "/Tx":
+                continue
+            name = str(widget.get("/T") or (parent.get("/T") if parent else ""))
+            appearance = widget["/AP"]["/N"].get_object().get_data().decode("latin-1")
+            size_match = re.search(r"/Helv\s+([0-9.]+)\s+Tf", appearance)
+            scale_match = re.search(r"([0-9.]+)\s+Tz", appearance)
+            assert size_match, f"No se encontró el tamaño de fuente de {name}"
+            assert scale_match, f"No se encontró la escala horizontal de {name}"
+            size = float(size_match.group(1))
+            horizontal_scale = float(scale_match.group(1))
+            if name in styles_by_name:
+                styles_by_name[name].append((size, horizontal_scale))
+
+            rect = widget["/Rect"]
+            available_width = abs(float(rect[2]) - float(rect[0])) - 4
+            rendered_width = (
+                stringWidth(values[name], "Helvetica", size) * horizontal_scale / 100
+            )
+            assert rendered_width <= available_width + 0.1
+            assert size >= 8.0
+
+    assert (10.0, 100.0) in styles_by_name["localidad"]
+    assert (10.0, 100.0) in styles_by_name["calle"]
+    assert set(styles_by_name["dominio"]) == {(10.0, 100.0)}
+    assert set(styles_by_name["monto de prenda en letras"]) == {(10.0, 100.0)}
 
 
 def test_icbc_packet_uses_manual_pledge_amount_and_oficio_continuation():
