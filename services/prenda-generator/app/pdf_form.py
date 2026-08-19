@@ -95,6 +95,38 @@ FINAL_WIDGET_RECTS = {
     (3, "dia vto", (142.23, 783.09, 154.51, 795.37)): (144.33, 770.51, 156.63, 782.81),
 }
 
+# Final physical-print calibration copied exactly from the Galicia packet fixed
+# by the operations team on 2026-08-19. This second pass starts from the
+# already-corrected rectangles above and reproduces the manually verified PDF.
+USER_FIXED_WIDGET_RECTS = {
+    (1, "mca motor", (191.44, 93.91, 328.87, 109.52)): (191.1385, 97.5139, 328.5662, 113.1161),
+    (1, "nro motor", (186.64, 72.31, 329.47, 89.11)): (186.3376, 75.9108, 329.1664, 92.7132),
+    (1, "mca chasis", (203.74, 53.11, 328.27, 68.71)): (203.441, 56.7081, 327.9661, 72.3103),
+    (1, "nro chasis", (188.14, 32.1, 333.07, 48.31)): (187.8379, 35.7051, 332.7671, 51.9074),
+    (2, "dominio", (130.36, 610.43, 187.92, 623.38)): (130.5263, 613.2874, 188.1379, 626.4893),
+    (2, "calle", (105.02, 497.77, 530.0, 510.37)): (105.3212, 500.1713, 530.2069, 512.7731),
+    (2, "nro calle", (538.91, 498.07, 571.32, 511.27)): (539.2087, 500.4713, 571.6152, 513.6732),
+    (2, "marca vehiculo", (233.62, 610.43, 316.37, 623.38)): (234.0472, 613.2874, 316.5638, 626.4893),
+    (2, "tipo", (112.37, 597.48, 184.32, 610.43)): (112.5227, 600.3856, 184.5372, 613.2874),
+    (2, "modelo", (147.63, 584.53, 427.19, 597.48)): (147.9298, 587.4837, 427.5862, 600.3856),
+    (2, "mca motor", (352.35, 621.94, 425.75, 634.9)): (352.5711, 624.9891, 426.0859, 637.8909),
+    (2, "nro motor", (471.08, 621.94, 562.47, 634.9)): (471.395, 624.9891, 562.9135, 637.8909),
+    (2, "mca chasis", (373.94, 610.43, 445.54, 623.38)): (374.1754, 613.2874, 445.8899, 626.4893),
+    (2, "nro chasis", (341.2, 597.48, 481.16, 610.43)): (341.4688, 600.3856, 481.5971, 613.2874),
+    (2, "modelo año", (103.73, 621.94, 139.35, 634.9)): (104.121, 624.9891, 139.5281, 637.8909),
+    (2, "provincia", (243.95, 573.98, 312.06, 586.58)): (243.9492, 576.9822, 312.0629, 589.584),
+    (2, "partido", (86.78, 544.0, 183.65, 556.96)): (86.7175, 555.6792, 183.637, 568.5811),
+    (2, "localidad", (147.33, 514.87, 530.0, 527.78)): (147.6298, 517.2737, 530.2069, 530.1755),
+    (2, "usado/0km", (509.94, 597.48, 555.63, 610.43)): (510.1028, 600.3856, 556.0121, 613.2874),
+    (2, "tipo de uso", (218.51, 597.48, 279.67, 610.43)): (218.7441, 600.3856, 279.9564, 613.2874),
+    (3, "TNA / 12", (325.36, 630.0, 349.47, 642.95)): (327.6998, 630.0337, 351.7766, 642.9343),
+    (3, "plazo", (267.95, 785.81, 283.56, 798.71)): (272.755, 787.3122, 288.3581, 800.2141),
+    (3, "mail", (162.33, 552.68, 291.96, 567.98)): (162.2727, 555.1965, 291.8988, 570.5653),
+    (3, "año vto", (181.24, 770.21, 193.54, 782.51)): (190.1394, 773.6663, 202.4403, 785.967),
+    (3, "mes vto", (163.23, 770.21, 175.54, 782.51)): (172.138, 773.6663, 184.4389, 785.967),
+    (3, "dia vto", (144.33, 770.51, 156.63, 782.81)): (153.2366, 773.9664, 165.5375, 786.267),
+}
+
 
 MAX_FONT_SIZE = 10.0
 MIN_FONT_SIZE = 8.0
@@ -235,7 +267,11 @@ def _fit_contract_pages_to_a4(writer: PdfWriter) -> None:
     )
 
 
-def _apply_final_widget_rects(writer: PdfWriter) -> None:
+def _apply_widget_rect_map(
+    writer: PdfWriter,
+    rect_map: dict[tuple[int, str, tuple[float, ...]], tuple[float, ...]],
+    label: str,
+) -> None:
     applied = set()
     for page_number, page in enumerate(writer.pages, 1):
         for ref in page.get("/Annots", []):
@@ -248,7 +284,7 @@ def _apply_final_widget_rects(writer: PdfWriter) -> None:
                 continue
             source_rect = tuple(round(float(value), 2) for value in rect)
             key = (page_number, str(name), source_rect)
-            target_rect = FINAL_WIDGET_RECTS.get(key)
+            target_rect = rect_map.get(key)
             if target_rect is None:
                 continue
             widget[NameObject("/Rect")] = ArrayObject([
@@ -256,12 +292,20 @@ def _apply_final_widget_rects(writer: PdfWriter) -> None:
             ])
             applied.add(key)
 
-    missing = set(FINAL_WIDGET_RECTS) - applied
+    missing = set(rect_map) - applied
     if missing:
         raise ValueError(
-            "No se pudieron aplicar todas las coordenadas finales de Galicia: "
+            f"No se pudieron aplicar todas las coordenadas {label} de Galicia: "
             f"{sorted(missing)}"
         )
+
+
+def _apply_final_widget_rects(writer: PdfWriter) -> None:
+    _apply_widget_rect_map(writer, FINAL_WIDGET_RECTS, "finales")
+
+
+def _apply_user_fixed_widget_rects(writer: PdfWriter) -> None:
+    _apply_widget_rect_map(writer, USER_FIXED_WIDGET_RECTS, "fixed")
 
 
 def _upper(value: Any) -> str:
@@ -345,7 +389,7 @@ def values_from_form(form: dict[str, Any]) -> dict[str, Any]:
         "monto de prenda": money(bruto),
         "nombre titular": _upper(form.get("nombre")),
         "TNA": str(form.get("tna") or ""),
-        "TNA / 12": str((_decimal(form.get("tna")) / 12).quantize(Decimal("0.0001"))),
+        "TNA / 12": str((_decimal(form.get("tna")) / 12).quantize(Decimal("0.01"))),
         "cuil": _cuil(form.get("cuil")),
         "profesion": _upper(form.get("profesion")),
         "calle": _upper(form.get("calle")),
@@ -402,6 +446,7 @@ def fill_galicia(values: dict[str, Any]) -> bytes:
     # pages are the stable printable packet used by the operations team.
     del writer.pages[0]
     _apply_final_widget_rects(writer)
+    _apply_user_fixed_widget_rects(writer)
     # Generate each appearance only after every widget has its final rectangle.
     # Long values receive a widget-specific font size, so the same field can fit
     # both a wide occurrence and a narrower repeated occurrence in the packet.
